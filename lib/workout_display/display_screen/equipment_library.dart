@@ -2,29 +2,88 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../models/exercise_catalog_model.dart';
 import '../models/exercise_model.dart';
 import '../models/workout_day_model.dart';
+import '../services/exercise_catalog_service.dart';
 import '../widget/equipment_chip.dart';
 
-class EquipmentLibraryScreen extends StatelessWidget {
+class EquipmentLibraryScreen extends StatefulWidget {
   final WorkoutDayModel workoutDay;
 
   const EquipmentLibraryScreen({super.key, required this.workoutDay});
 
-  List<String> get equipmentList {
+  @override
+  State<EquipmentLibraryScreen> createState() => _EquipmentLibraryScreenState();
+}
+
+class _EquipmentLibraryScreenState extends State<EquipmentLibraryScreen> {
+  final ExerciseCatalogService _catalogService =
+      ExerciseCatalogService.instance;
+
+  late Future<List<_ExerciseEquipmentData>> _equipmentFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _equipmentFuture = _loadEquipment();
+  }
+
+  Future<List<_ExerciseEquipmentData>> _loadEquipment() async {
+    return Future.wait(
+      widget.workoutDay.workout.map((exercise) async {
+        try {
+          final catalog =
+              await _catalogService.findBestMatch(exercise.exerciseName);
+
+          return _ExerciseEquipmentData(
+            geminiExercise: exercise,
+            catalog: catalog,
+          );
+        } catch (_) {
+          return _ExerciseEquipmentData(
+            geminiExercise: exercise,
+            catalog: null,
+          );
+        }
+      }),
+    );
+  }
+
+  List<String> _equipmentList(List<_ExerciseEquipmentData> data) {
     final equipment = <String>{};
 
-    for (ExerciseModel exercise in workoutDay.workout) {
-      if (exercise.equipmentRequired.trim().isEmpty) continue;
+    for (final item in data) {
+      final catalogEquipment = item.catalog?.equipments ?? const <String>[];
 
-      final parts = exercise.equipmentRequired.split(",");
-
-      for (final item in parts) {
-        equipment.add(item.trim());
+      if (catalogEquipment.isNotEmpty) {
+        equipment.addAll(
+          catalogEquipment
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty),
+        );
+        continue;
       }
+
+      final geminiEquipment = item.geminiExercise.equipmentRequired.trim();
+
+      if (geminiEquipment.isEmpty) continue;
+
+      equipment.addAll(
+        geminiEquipment
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty),
+      );
     }
 
     return equipment.toList()..sort();
+  }
+
+  void _reload() {
+    setState(() {
+      _equipmentFuture = _loadEquipment();
+    });
   }
 
   @override
@@ -32,14 +91,12 @@ class EquipmentLibraryScreen extends StatelessWidget {
     final sw = MediaQuery.of(context).size.width;
     final sh = MediaQuery.of(context).size.height;
 
-    final equipments = equipmentList;
-
     return Container(
       width: double.infinity,
       height: double.infinity,
       decoration: BoxDecoration(
         image: DecorationImage(
-          image: AssetImage('assets/workout_background.png'),
+          image: const AssetImage('assets/workout_background.png'),
           fit: BoxFit.cover,
           colorFilter: ColorFilter.mode(
             Colors.white.withOpacity(0.9),
@@ -49,325 +106,354 @@ class EquipmentLibraryScreen extends StatelessWidget {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-
         appBar: AppBar(
           elevation: 0,
           centerTitle: true,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           title: const Text(
-            "Equipment Library",
+            'Equipment Library',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
+          actions: [
+            IconButton(
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh catalog',
+            ),
+          ],
         ),
+        body: FutureBuilder<List<_ExerciseEquipmentData>>(
+          future: _equipmentFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        body: equipments.isEmpty
-            ? const Center(
+            final data = snapshot.data ?? const <_ExerciseEquipmentData>[];
+            final equipments = _equipmentList(data);
+
+            if (equipments.isEmpty) {
+              return const Center(
                 child: Text(
-                  "No Equipment Required",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  'No Equipment Required',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              )
-            : SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: sh * .03),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18),
+              );
+            }
 
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: sh * .03),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 18),
+
+                  _HeaderCard(
+                    dayName: widget.workoutDay.dayName,
+                    focus: widget.workoutDay.focus,
+                    exerciseCount: widget.workoutDay.workout.length,
+                    equipmentCount: equipments.length,
+                    sw: sw,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Text(
+                      'Required Equipment',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: sw * .050,
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadiusGeometry.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white.withOpacity(0.15),
-                                  Colors.white.withOpacity(0.05),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.25),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.fitness_center,
-                                      color: Colors.white,
-                                      size: 42,
-                                    ),
+                    ),
+                  ),
 
-                                    SizedBox(width: 16),
+                  const SizedBox(height: 14),
 
-                                    Text(
-                                      workoutDay.dayName,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: sw * .060,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: equipments
+                          .map(
+                            (equipment) =>
+                                EquipmentChip(equipment: equipment),
+                          )
+                          .toList(),
+                    ),
+                  ),
 
-                                const SizedBox(height: 8),
+                  const SizedBox(height: 24),
 
-                                Text(
-                                  workoutDay.focus,
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: sw * .040,
-                                  ),
-                                ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Text(
+                      "Equipment Used in Today's Workout",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: sw * .050,
+                      ),
+                    ),
+                  ),
 
-                                const SizedBox(height: 18),
+                  const SizedBox(height: 12),
 
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _TopCard(
-                                        title: "Exercises",
-                                        value: workoutDay.workout.length
-                                            .toString(),
-                                        icon: Icons.sports_gymnastics,
-                                      ),
-                                    ),
+                  ...data.map(
+                    (item) => _ExerciseEquipmentCard(
+                      data: item,
+                      sw: sw,
+                    ),
+                  ),
 
-                                    const SizedBox(width: 12),
+                  const SizedBox(height: 24),
 
-                                    Expanded(
-                                      child: _TopCard(
-                                        title: "Equipment",
-                                        value: equipments.length.toString(),
-                                        icon: Icons.handyman,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.tips_and_updates,
+                          color: Colors.orange,
+                          size: 34,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            'Arrange all required equipment before starting your workout to avoid interruptions and maintain workout intensity.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              height: 1.6,
+                              fontSize: sw * .039,
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
 
-                    const SizedBox(height: 24),
+class _ExerciseEquipmentData {
+  final ExerciseModel geminiExercise;
+  final ExerciseCatalogModel? catalog;
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: Text(
-                        "Required Equipment",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: sw * .050,
-                        ),
-                      ),
-                    ),
+  const _ExerciseEquipmentData({
+    required this.geminiExercise,
+    required this.catalog,
+  });
 
-                    const SizedBox(height: 14),
+  String get equipment {
+    final catalogEquipment = catalog?.equipments ?? const <String>[];
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: equipments
-                            .map(
-                              (equipment) =>
-                                  EquipmentChip(equipment: equipment),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+    if (catalogEquipment.isNotEmpty) {
+      return catalogEquipment.join(', ');
+    }
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: Text(
-                        "Equipment Used in Today's Workout",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: sw * .050,
-                        ),
-                      ),
-                    ),
+    return geminiExercise.equipmentRequired;
+  }
+}
 
-                    const SizedBox(height: 12),
+class _HeaderCard extends StatelessWidget {
+  final String dayName;
+  final String focus;
+  final int exerciseCount;
+  final int equipmentCount;
+  final double sw;
 
-                    ...workoutDay.workout.map(
-                      (exercise) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10.0),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                                offset: Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadiusGeometry.circular(24),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Colors.white.withOpacity(0.15),
-                                      Colors.white.withOpacity(0.05),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.25),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          exercise.exerciseName,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: sw * .044,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                        
-                                        const SizedBox(height: 8),
-                        
-                                        Text(
-                                          exercise.exerciseType,
-                                          style: TextStyle(
-                                            color: Colors.grey.shade200,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                        
-                                    const SizedBox(height: 16),
-                        
-                                    EquipmentChip(
-                                      equipment: exercise.equipmentRequired,
-                                    ),
-                        
-                                    const SizedBox(height: 18),
-                        
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _InfoCard(
-                                            icon: Icons.repeat,
-                                            title: "Sets",
-                                            value: exercise.sets,
-                                          ),
-                                        ),
-                        
-                                        const SizedBox(width: 10),
-                        
-                                        Expanded(
-                                          child: _InfoCard(
-                                            icon: Icons.fitness_center,
-                                            title: "Reps",
-                                            value: exercise.reps,
-                                          ),
-                                        ),
-                        
-                                        const SizedBox(width: 10),
-                        
-                                        Expanded(
-                                          child: _InfoCard(
-                                            icon: Icons.timer_outlined,
-                                            title: "Rest",
-                                            value: exercise.rest,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+  const _HeaderCard({
+    required this.dayName,
+    required this.focus,
+    required this.exerciseCount,
+    required this.equipmentCount,
+    required this.sw,
+  });
 
-                    SizedBox(height: 24),
-
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      padding: const EdgeInsets.only(left: 20, right: 20),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.tips_and_updates,
-                            color: Colors.orange,
-                            size: 34,
-                          ),
-
-                          const SizedBox(width: 14),
-
-                          Expanded(
-                            child: Text(
-                              "Arrange all required equipment before starting your workout to avoid interruptions and maintain workout intensity.",
-                              style: TextStyle(
-                                color: Colors.white,
-                                height: 1.6,
-                                fontSize: sw * .039,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(.15),
+            Colors.white.withOpacity(.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(.25),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.15),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.fitness_center,
+                color: Colors.white,
+                size: 42,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  dayName,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: sw * .060,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            focus,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: sw * .040,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _TopCard(
+                  title: 'Exercises',
+                  value: exerciseCount.toString(),
+                  icon: Icons.sports_gymnastics,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _TopCard(
+                  title: 'Equipment',
+                  value: equipmentCount.toString(),
+                  icon: Icons.handyman,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExerciseEquipmentCard extends StatelessWidget {
+  final _ExerciseEquipmentData data;
+  final double sw;
+
+  const _ExerciseEquipmentCard({
+    required this.data,
+    required this.sw,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final exercise = data.geminiExercise;
+    final catalog = data.catalog;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(.15),
+              Colors.white.withOpacity(.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white.withOpacity(.25),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              catalog?.exerciseName ?? exercise.exerciseName,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: sw * .044,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              exercise.exerciseType,
+              style: TextStyle(color: Colors.grey.shade200),
+            ),
+            const SizedBox(height: 16),
+            EquipmentChip(
+              equipment: data.equipment.isEmpty ? 'No equipment' : data.equipment,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoCard(
+                    icon: Icons.repeat,
+                    title: 'Sets',
+                    value: exercise.sets,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InfoCard(
+                    icon: Icons.fitness_center,
+                    title: 'Reps',
+                    value: exercise.reps,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InfoCard(
+                    icon: Icons.timer_outlined,
+                    title: 'Rest',
+                    value: exercise.rest,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -398,11 +484,11 @@ class _TopCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: Colors.white, size: 30),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(title, style: const TextStyle(color: Colors.white70)),
             ],
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
@@ -442,20 +528,19 @@ class _InfoCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: Theme.of(context).primaryColor),
-
               const SizedBox(width: 8),
-
               Text(
                 title,
-                style: const TextStyle(color: Colors.black, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
-
           const SizedBox(height: 6),
-
           Text(
-            value.isEmpty ? "-" : value,
+            value.isEmpty ? '-' : value,
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),

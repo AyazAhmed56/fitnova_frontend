@@ -4,7 +4,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../models/exercise_model.dart';
+import '../models/exercise_catalog_model.dart';
 import '../models/workout_day_model.dart';
+import '../services/exercise_catalog_service.dart';
 
 class WorkoutSessionScreen extends StatefulWidget {
   final WorkoutDayModel workoutDay;
@@ -33,7 +35,21 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
   bool _isRunning = false;
   bool _isPaused = false;
 
+  final ExerciseCatalogService _catalogService =
+      ExerciseCatalogService.instance;
+
+  final Map<String, Future<ExerciseCatalogModel?>> _catalogLookups = {};
+
   List<ExerciseModel> get exercises => widget.workoutDay.workout;
+
+  Future<ExerciseCatalogModel?> _catalogFor(String exerciseName) {
+    final key = ExerciseCatalogService.normalizeExerciseName(exerciseName);
+
+    return _catalogLookups.putIfAbsent(
+      key,
+      () => _catalogService.findBestMatch(exerciseName),
+    );
+  }
 
   double get progress {
     if (exercises.isEmpty) return 0;
@@ -258,6 +274,54 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                     padding: EdgeInsets.only(bottom: sh * .03),
                     child: Column(
                       children: [
+                        FutureBuilder<ExerciseCatalogModel?>(
+                          future: _catalogFor(exercise.exerciseName),
+                          builder: (context, catalogSnapshot) {
+                            final catalog = catalogSnapshot.data;
+
+                            return Column(
+                              children: [
+                                if (catalogSnapshot.connectionState ==
+                                    ConnectionState.waiting)
+                                  const _SessionGifLoading(),
+
+                                if (catalogSnapshot.connectionState !=
+                                        ConnectionState.waiting &&
+                                    catalog?.gifUrl != null &&
+                                    catalog!.gifUrl!.trim().isNotEmpty)
+                                  _SessionGif(gifUrl: catalog.gifUrl!),
+
+                                if (catalog?.targetMuscles.isNotEmpty ==
+                                    true) ...[
+                                  const SizedBox(height: 12),
+                                  _CatalogMeta(
+                                    title: 'Target Muscles',
+                                    value: catalog!.targetMuscles.join(', '),
+                                  ),
+                                ],
+
+                                if (catalog?.bodyParts.isNotEmpty == true) ...[
+                                  const SizedBox(height: 8),
+                                  _CatalogMeta(
+                                    title: 'Body Part',
+                                    value: catalog!.bodyParts.join(', '),
+                                  ),
+                                ],
+
+                                if (catalog?.equipments.isNotEmpty == true) ...[
+                                  const SizedBox(height: 8),
+                                  _CatalogMeta(
+                                    title: 'Equipment',
+                                    value: catalog!.equipments.join(', '),
+                                  ),
+                                ],
+
+                                const SizedBox(height: 18),
+                              ],
+                            );
+                          },
+                        ),
+
                         Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(24),
@@ -418,9 +482,21 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
 
                               const SizedBox(height: 12),
 
-                              ...List.generate(
-                                exercise.instructions.length,
-                                (i) => Padding(
+                              FutureBuilder<ExerciseCatalogModel?>(
+                                future: _catalogFor(exercise.exerciseName),
+                                builder: (context, catalogSnapshot) {
+                                  final catalogInstructions =
+                                      catalogSnapshot.data?.instructions ?? const <String>[];
+
+                                  final instructions =
+                                      catalogInstructions.isNotEmpty
+                                          ? catalogInstructions
+                                          : exercise.instructions;
+
+                                  return Column(
+                                    children: List.generate(
+                                      instructions.length,
+                                      (i) => Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Row(
                                     crossAxisAlignment:
@@ -438,7 +514,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
 
                                       Expanded(
                                         child: Text(
-                                          exercise.instructions[i],
+                                          instructions[i],
                                           style: const TextStyle(
                                             height: 1.6,
                                             color: Colors.white,
@@ -447,7 +523,10 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                                       ),
                                     ],
                                   ),
-                                ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
 
                               if (exercise.tips.isNotEmpty) ...[
@@ -720,6 +799,131 @@ class _StatTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+// ============================================================
+// SUPABASE / EXERCISEDB SESSION GIF
+// ============================================================
+
+class _SessionGif extends StatelessWidget {
+  final String gifUrl;
+
+  const _SessionGif({required this.gifUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 250,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.15),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        gifUrl,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  size: 42,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Exercise GIF could not be loaded',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SessionGifLoading extends StatelessWidget {
+  const _SessionGifLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 250,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.10),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(.15)),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _CatalogMeta extends StatelessWidget {
+  final String title;
+  final String value;
+
+  const _CatalogMeta({
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(.10)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$title: ',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }

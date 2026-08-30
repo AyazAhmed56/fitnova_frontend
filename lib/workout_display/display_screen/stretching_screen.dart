@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../models/stretching_model.dart';
+import '../models/exercise_catalog_model.dart';
+import '../services/exercise_catalog_service.dart';
 import '../models/workout_day_model.dart';
 import '../widget/stretching_card.dart';
 
@@ -29,6 +31,20 @@ class _StretchingScreenState extends State<StretchingScreen> {
   );
 
   int _currentIndex = 0;
+
+  final ExerciseCatalogService _catalogService =
+      ExerciseCatalogService.instance;
+
+  final Map<String, Future<ExerciseCatalogModel?>> _catalogLookups = {};
+
+  Future<ExerciseCatalogModel?> _catalogFor(String exerciseName) {
+    final key = ExerciseCatalogService.normalizeExerciseName(exerciseName);
+
+    return _catalogLookups.putIfAbsent(
+      key,
+      () => _catalogService.findBestMatch(exerciseName),
+    );
+  }
 
   @override
   void initState() {
@@ -190,6 +206,10 @@ class _StretchingScreenState extends State<StretchingScreen> {
                       padding: EdgeInsets.only(bottom: sh * .03),
                       child: Column(
                         children: [
+                          _CatalogGif(
+                            future: _catalogFor(stretch.exerciseName),
+                          ),
+                          const SizedBox(height: 14),
                           StretchingCard(
                             stretching: stretch,
                             onTap: _nextExercise,
@@ -501,6 +521,123 @@ class _StretchingScreenState extends State<StretchingScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ============================================================
+// SUPABASE / EXERCISEDB GIF
+// ============================================================
+
+class _CatalogGif extends StatelessWidget {
+  final Future<ExerciseCatalogModel?> future;
+
+  const _CatalogGif({required this.future});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ExerciseCatalogModel?>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            height: 230,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.10),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.white.withOpacity(.15),
+              ),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          );
+        }
+
+        final catalog = snapshot.data;
+        final gifUrl = catalog?.gifUrl?.trim();
+
+        if (gifUrl == null || gifUrl.isEmpty) {
+          return Container(
+            height: 90,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(.25),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.white.withOpacity(.10),
+              ),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.image_not_supported_outlined,
+                  color: Colors.white54,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Exercise GIF not available',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          height: 230,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.15),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.network(
+            gifUrl,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.broken_image_outlined,
+                      size: 42,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Exercise GIF could not be loaded',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

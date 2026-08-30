@@ -14,7 +14,7 @@ class ExerciseLibraryScreen extends StatefulWidget {
 }
 
 class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
-  final ExerciseCatalogService _catalogService = ExerciseCatalogService();
+  final ExerciseCatalogService _catalogService = ExerciseCatalogService.instance;
 
   final TextEditingController _searchController = TextEditingController();
 
