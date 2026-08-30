@@ -1,0 +1,168 @@
+name: fitnova
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.16.0
+  font_awesome_flutter: ^11.0.0
+  marquee: ^2.3.0
+  hugeicons: ^1.1.7
+  printing: ^5.14.3
+  pdf: ^3.12.0
+  intl: ^0.20.3
+  google_generative_ai: ^0.4.7
+  http: ^1.6.0
+  flutter_dotenv: ^6.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/homepage.png
+    - assets/genplan.png
+    - assets/google.png
+    - assets/diet_background.png
+    - assets/workout_background.png
+    - assets/main_background.png
+    - assets/logo.png
+
+    #skin
+    - assets/skin/male/dark.png
+    - assets/skin/male/wheatish.png
+    - assets/skin/male/fair.png
+    - assets/skin/male/dusky.png
+    - assets/skin/male/medium.png
+    - assets/skin/female/dark.png
+    - assets/skin/female/wheatish.png
+    - assets/skin/female/fair.png
+    - assets/skin/female/dusky.png
+    - assets/skin/female/medium.png
+
+    #hair
+    - assets/hair/male/coily.png
+    - assets/hair/male/curly.png
+    - assets/hair/male/straight.png
+    - assets/hair/male/wavy.png
+    - assets/hair/female/coily.png
+    - assets/hair/female/curly.png
+    - assets/hair/female/straight.png
+    - assets/hair/female/wavy.png
+    - assets/hair/scalp/dry.png
+    - assets/hair/scalp/normal.png
+    - assets/hair/scalp/oily.png
+    - assets/hair/scalp/sensitive.png
+    - assets/hair/concern/breakage.png
+    - assets/hair/concern/dandruff.png
+    - assets/hair/concern/hairfall.png
+    - assets/hair/concern/itchy.png
+    - assets/hair/concern/slow growth.png
+    - assets/hair/concern/split end.png
+    - assets/hair/concern/thin hair.png
+
+    #bodytype
+    - assets/bodytype/male/ectomorph.png
+    - assets/bodytype/male/endomorph.png
+    - assets/bodytype/male/mesomorph.png
+    - assets/bodytype/male/not sure.png
+    - assets/bodytype/female/ectomorph.png
+    - assets/bodytype/female/endomorph.png
+    - assets/bodytype/female/mesomorph.png
+    - assets/bodytype/female/not sure.png
+
+    #bodygoal
+    - assets/bodygoal/male/body_recomp.png
+    - assets/bodygoal/male/clean_bulk.png
+    - assets/bodygoal/male/cutting.png
+    - assets/bodygoal/male/fat_loss.png
+    - assets/bodygoal/male/lean_bulk.png
+    - assets/bodygoal/male/maintain.png
+    - assets/bodygoal/male/muscle_gain.png
+    - assets/bodygoal/male/aesthetic_physique.png
+    - assets/bodygoal/female/hour_glass.png
+    - assets/bodygoal/female/lean_&_toned.png
+    - assets/bodygoal/female/maintain.png
+    - assets/bodygoal/female/muscle_tone.png
+    - assets/bodygoal/female/slim_fit.png
+    - assets/bodygoal/female/weight_loss.png
+    - assets/bodygoal/female/overall_wellness.png
+    - assets/bodygoal/female/toned_curves.png
+
+  # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
