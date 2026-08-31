@@ -765,7 +765,6 @@ class _DashboardState extends State<Dashboard> {
               borderRadius: BorderRadiusGeometry.circular(50),
             ),
             onPressed: () {
-              // Add your action code here!
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AiCoachScreen()),

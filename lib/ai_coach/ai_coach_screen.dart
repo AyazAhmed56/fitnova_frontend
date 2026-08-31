@@ -400,26 +400,15 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
         // BACK + SIDEBAR
         leadingWidth: 100,
 
-        leading: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              icon: const Icon(Icons.menu_rounded, size: 28),
               onPressed: () {
-                Navigator.pop(context);
+                Scaffold.of(context).openDrawer();
               },
-            ),
-
-            Builder(
-              builder: (context) {
-                return IconButton(
-                  icon: const Icon(Icons.menu_rounded, size: 28),
-                  onPressed: () {
-                    Scaffold.of(context).openDrawer();
-                  },
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
 
         title: const Text(
