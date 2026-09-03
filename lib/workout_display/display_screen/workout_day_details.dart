@@ -380,30 +380,29 @@ class _ExerciseCard extends StatelessWidget {
                   ],
                 ),
 
-                if (exercise.hasCatalogData) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.verified_outlined,
-                        size: 16,
-                        color: Color(0xFF6D574A),
-                      ),
-                      const SizedBox(width: 5),
-                      const Expanded(
-                        child: Text(
-                          'ExerciseDB catalog matched',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF6D574A),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-
+                // if (exercise.hasCatalogData) ...[
+                //   const SizedBox(height: 8),
+                //   Row(
+                //     children: [
+                //       const Icon(
+                //         Icons.verified_outlined,
+                //         size: 16,
+                //         color: Color(0xFF6D574A),
+                //       ),
+                //       const SizedBox(width: 5),
+                //       const Expanded(
+                //         child: Text(
+                //           'ExerciseDB catalog matched',
+                //           style: TextStyle(
+                //             fontSize: 12,
+                //             color: Color(0xFF6D574A),
+                //             fontWeight: FontWeight.w600,
+                //           ),
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                // ],
                 const SizedBox(height: 14),
 
                 // Gemini programming data is preserved.
@@ -464,9 +463,61 @@ class _ExerciseCard extends StatelessWidget {
                     instructions.length,
                     (index) => Padding(
                       padding: const EdgeInsets.only(bottom: 7),
-                      child: Text('${index + 1}. ${instructions[index]}'),
+                      child: Text(instructions[index]),
                     ),
                   ),
+                ],
+
+                // ALTERNATIVE EXERCISES
+                if (exercise.substituteExercises.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+
+                  const _Label(title: 'Alternative Exercises'),
+
+                  const SizedBox(height: 8),
+
+                  ...exercise.substituteExercises
+                      .take(2)
+                      .toList()
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEDE4DD),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${entry.key + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 10),
+
+                              Expanded(
+                                child: Text(
+                                  entry.value,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                 ],
 
                 // Gemini trainer guidance is preserved.
@@ -506,38 +557,38 @@ class _ExerciseCard extends StatelessWidget {
                   ),
                 ],
 
-                if (exercise.exerciseDbId != null &&
-                    exercise.exerciseDbId!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4ECE6),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.storage_rounded,
-                          size: 17,
-                          color: Color(0xFF6D574A),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'ExerciseDB ID: ${exercise.exerciseDbId}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6D574A),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                //   if (exercise.exerciseDbId != null &&
+                //       exercise.exerciseDbId!.trim().isNotEmpty) ...[
+                //     const SizedBox(height: 16),
+                //     Container(
+                //       width: double.infinity,
+                //       padding: const EdgeInsets.all(12),
+                //       decoration: BoxDecoration(
+                //         color: const Color(0xFFF4ECE6),
+                //         borderRadius: BorderRadius.circular(14),
+                //       ),
+                //       child: Row(
+                //         children: [
+                //           const Icon(
+                //             Icons.storage_rounded,
+                //             size: 17,
+                //             color: Color(0xFF6D574A),
+                //           ),
+                //           const SizedBox(width: 8),
+                //           Expanded(
+                //             child: Text(
+                //               'ExerciseDB ID: ${exercise.exerciseDbId}',
+                //               style: const TextStyle(
+                //                 fontSize: 12,
+                //                 color: Color(0xFF6D574A),
+                //                 fontWeight: FontWeight.w600,
+                //               ),
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //     ),
+                //   ],
               ],
             ),
           ),

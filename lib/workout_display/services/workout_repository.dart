@@ -22,53 +22,26 @@ class WorkoutRepository {
 
   final WorkoutAIService _aiService = WorkoutAIService();
 
-  // ============================================================
   // GENERATE + ENRICH + SAVE
-  // ============================================================
-
   Future<WorkoutPlanModel> generateAndSaveWorkoutPlan(
     UserProfileModel profile,
   ) async {
-    // ----------------------------------------------------------
-    // 1. Gemini creates weekly programming.
-    // ----------------------------------------------------------
-
     final geminiResponse = await _aiService.generateWorkoutPlan(profile);
-
-    // ----------------------------------------------------------
-    // 2. Convert Gemini JSON to model.
-    // ----------------------------------------------------------
 
     final generatedPlan = WorkoutPlanModel.fromMap({
       ...geminiResponse,
       'createdAt': DateTime.now().toIso8601String(),
     });
 
-    // ----------------------------------------------------------
-    // 3. Enrich with Supabase ExerciseDB data.
-    // ----------------------------------------------------------
-
     final enrichedPlan = await _enrichPlanWithCatalog(generatedPlan);
-
-    // ----------------------------------------------------------
-    // 4. Save complete plan.
-    // ----------------------------------------------------------
 
     await saveWorkoutPlan(enrichedPlan);
 
     return enrichedPlan;
   }
 
-  // ============================================================
-  // ENRICH PLAN
-  // ============================================================
-
   Future<WorkoutPlanModel> _enrichPlanWithCatalog(WorkoutPlanModel plan) async {
     final Map<String, WorkoutDayModel> enrichedDays = {};
-
-    // ----------------------------------------------------------
-    // Collect all main workout exercise names.
-    // ----------------------------------------------------------
 
     final List<String> exerciseNames = [];
 
@@ -84,15 +57,7 @@ class WorkoutRepository {
       }
     }
 
-    // ----------------------------------------------------------
-    // Fetch catalog records in one query.
-    // ----------------------------------------------------------
-
     final catalogExercises = await _catalogService.findByNames(exerciseNames);
-
-    // ----------------------------------------------------------
-    // Build normalized lookup map.
-    // ----------------------------------------------------------
 
     final Map<String, dynamic> catalogMap = {};
 
@@ -102,10 +67,6 @@ class WorkoutRepository {
           )] =
           catalog;
     }
-
-    // ----------------------------------------------------------
-    // Enrich each workout day.
-    // ----------------------------------------------------------
 
     for (final entry in plan.days.entries) {
       final day = entry.value;
@@ -124,17 +85,9 @@ class WorkoutRepository {
 
         var catalog = catalogMap[normalized];
 
-        // ------------------------------------------------------
-        // Fallback to best-match lookup.
-        // ------------------------------------------------------
-
         if (catalog == null) {
           catalog = await _catalogService.findBestMatch(exercise.exerciseName);
         }
-
-        // ------------------------------------------------------
-        // No match: keep Gemini programming.
-        // ------------------------------------------------------
 
         if (catalog == null) {
           enrichedExercises.add(exercise);
@@ -142,26 +95,21 @@ class WorkoutRepository {
           continue;
         }
 
-        // ------------------------------------------------------
-        // Merge Supabase ExerciseDB data.
-        // ------------------------------------------------------
-
         enrichedExercises.add(
           exercise.copyWith(
+            // IMPORTANT:
+            // Catalog name becomes the canonical displayed name.
+            exerciseName: catalog.exerciseName,
+
+            // ExerciseDB data
             exerciseDbId: catalog.exerciseDbId,
-
             gifUrl: catalog.gifUrl,
-
             bodyParts: catalog.bodyParts,
-
             targetMuscles: catalog.targetMuscles,
-
             catalogSecondaryMuscles: catalog.secondaryMuscles,
-
             catalogInstructions: catalog.instructions,
 
-            // Supabase is authoritative
-            // for ExerciseDB equipment.
+            // Supabase is authoritative for equipment.
             equipmentRequired: catalog.equipments.isNotEmpty
                 ? catalog.equipments.join(', ')
                 : exercise.equipmentRequired,

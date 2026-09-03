@@ -5,31 +5,21 @@ import '../models/exercise_catalog_model.dart';
 class ExerciseCatalogService {
   ExerciseCatalogService._();
 
-  static final ExerciseCatalogService instance =
-      ExerciseCatalogService._();
+  static final ExerciseCatalogService instance = ExerciseCatalogService._();
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
   static const String _table = 'exercise_catalog';
 
-  // ============================================================
   // PAGINATION
-  // ============================================================
-
   static const int defaultPageSize = 50;
   static const int maxPageSize = 100;
 
-  // ============================================================
   // CACHE
-  // ============================================================
-
   final Map<String, ExerciseCatalogModel?> _nameCache = {};
   final Map<String, ExerciseCatalogModel?> _idCache = {};
 
-  // ============================================================
   // NORMALIZATION
-  // ============================================================
-
   static String normalizeExerciseName(String name) {
     return name
         .toLowerCase()
@@ -38,10 +28,7 @@ class ExerciseCatalogService {
         .replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  // ============================================================
   // EXACT NAME MATCH
-  // ============================================================
-
   Future<ExerciseCatalogModel?> findByName(String exerciseName) async {
     final normalized = normalizeExerciseName(exerciseName);
 
@@ -61,9 +48,7 @@ class ExerciseCatalogService {
 
     final result = response == null
         ? null
-        : ExerciseCatalogModel.fromJson(
-            Map<String, dynamic>.from(response),
-          );
+        : ExerciseCatalogModel.fromJson(Map<String, dynamic>.from(response));
 
     _nameCache[normalized] = result;
 
@@ -74,13 +59,8 @@ class ExerciseCatalogService {
     return result;
   }
 
-  // ============================================================
   // EXERCISEDB ID MATCH
-  // ============================================================
-
-  Future<ExerciseCatalogModel?> findByExerciseDbId(
-    String exerciseDbId,
-  ) async {
+  Future<ExerciseCatalogModel?> findByExerciseDbId(String exerciseDbId) async {
     final id = exerciseDbId.trim();
 
     if (id.isEmpty) {
@@ -99,9 +79,7 @@ class ExerciseCatalogService {
 
     final result = response == null
         ? null
-        : ExerciseCatalogModel.fromJson(
-            Map<String, dynamic>.from(response),
-          );
+        : ExerciseCatalogModel.fromJson(Map<String, dynamic>.from(response));
 
     _idCache[id] = result;
 
@@ -112,30 +90,24 @@ class ExerciseCatalogService {
     return result;
   }
 
-  // ============================================================
-  // BEST MATCH
-  // ============================================================
-
-  Future<ExerciseCatalogModel?> findBestMatch(
-    String exerciseName,
-  ) async {
+  // BEST / SAFE MATCH
+  Future<ExerciseCatalogModel?> findBestMatch(String exerciseName) async {
     final original = exerciseName.trim();
 
     if (original.isEmpty) {
       return null;
     }
 
-    // 1. Exact normalized match.
     final exact = await findByName(original);
 
     if (exact != null) {
       return exact;
     }
 
-    // 2. Remove common Gemini equipment wording.
     final cleaned = _cleanExerciseName(original);
 
-    if (cleaned != original) {
+    if (cleaned.isNotEmpty &&
+        normalizeExerciseName(cleaned) != normalizeExerciseName(original)) {
       final cleanedMatch = await findByName(cleaned);
 
       if (cleanedMatch != null) {
@@ -143,92 +115,37 @@ class ExerciseCatalogService {
       }
     }
 
-    // 3. Search candidates by the complete cleaned phrase.
-    final normalized = normalizeExerciseName(cleaned);
+    final alias = _getAlias(original);
 
-    if (normalized.isEmpty) {
-      return null;
-    }
+    if (alias != null) {
+      final aliasMatch = await findByName(alias);
 
-    final response = await _supabase
-        .from(_table)
-        .select()
-        .ilike('normalized_name', '%$normalized%')
-        .limit(20);
-
-    final candidates = response
-        .whereType<Map>()
-        .map(
-          (item) => ExerciseCatalogModel.fromJson(
-            Map<String, dynamic>.from(item),
-          ),
-        )
-        .toList();
-
-    if (candidates.isNotEmpty) {
-      return _chooseBestCandidate(normalized, candidates);
-    }
-
-    // 4. Last fallback: search by important words.
-    final words = normalized
-        .split(' ')
-        .where((word) => word.length >= 2)
-        .toList();
-
-    words.sort((a, b) => b.length.compareTo(a.length));
-
-    for (final word in words.take(3)) {
-      final fallbackResponse = await _supabase
-          .from(_table)
-          .select()
-          .ilike('normalized_name', '%$word%')
-          .limit(20);
-
-      final fallbackCandidates = fallbackResponse
-          .whereType<Map>()
-          .map(
-            (item) => ExerciseCatalogModel.fromJson(
-              Map<String, dynamic>.from(item),
-            ),
-          )
-          .toList();
-
-      if (fallbackCandidates.isNotEmpty) {
-        return _chooseBestCandidate(
-          normalized,
-          fallbackCandidates,
-        );
+      if (aliasMatch != null) {
+        return aliasMatch;
       }
     }
 
     return null;
   }
 
-  // ============================================================
   // PAGINATED EXERCISE LIBRARY
-  // ============================================================
-
   Future<ExerciseCatalogPage> getExercisesPage({
     required int page,
     String search = '',
     int pageSize = defaultPageSize,
   }) async {
     final safePage = page < 0 ? 0 : page;
-    final safePageSize =
-        pageSize.clamp(1, maxPageSize).toInt();
+    final safePageSize = pageSize.clamp(1, maxPageSize).toInt();
 
     final from = safePage * safePageSize;
     final to = from + safePageSize - 1;
 
     final trimmedSearch = search.trim();
 
-    var query = _supabase
-        .from(_table)
-        .select();
+    var query = _supabase.from(_table).select();
 
     if (trimmedSearch.isNotEmpty) {
-      final normalizedSearch =
-          normalizeExerciseName(trimmedSearch);
+      final normalizedSearch = normalizeExerciseName(trimmedSearch);
 
       query = query.or(
         'exercise_name.ilike.%$trimmedSearch%,'
@@ -244,9 +161,8 @@ class ExerciseCatalogService {
     final exercises = response
         .whereType<Map>()
         .map(
-          (item) => ExerciseCatalogModel.fromJson(
-            Map<String, dynamic>.from(item),
-          ),
+          (item) =>
+              ExerciseCatalogModel.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
 
@@ -260,10 +176,7 @@ class ExerciseCatalogService {
     );
   }
 
-  // ============================================================
   // MULTIPLE MATCHES
-  // ============================================================
-
   Future<List<ExerciseCatalogModel>> findByNames(
     List<String> exerciseNames,
   ) async {
@@ -289,9 +202,8 @@ class ExerciseCatalogService {
     final results = response
         .whereType<Map>()
         .map(
-          (item) => ExerciseCatalogModel.fromJson(
-            Map<String, dynamic>.from(item),
-          ),
+          (item) =>
+              ExerciseCatalogModel.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
 
@@ -300,10 +212,7 @@ class ExerciseCatalogService {
     return results;
   }
 
-  // ============================================================
   // ALL EXERCISES
-  // ============================================================
-
   Future<List<ExerciseCatalogModel>> getAllExercises() async {
     final List<ExerciseCatalogModel> allExercises = [];
 
@@ -321,9 +230,8 @@ class ExerciseCatalogService {
       final page = response
           .whereType<Map>()
           .map(
-            (item) => ExerciseCatalogModel.fromJson(
-              Map<String, dynamic>.from(item),
-            ),
+            (item) =>
+                ExerciseCatalogModel.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList();
 
@@ -341,10 +249,7 @@ class ExerciseCatalogService {
     return allExercises;
   }
 
-  // ============================================================
   // TOTAL COUNT
-  // ============================================================
-
   Future<int> getExerciseCount() async {
     final response = await _supabase
         .from(_table)
@@ -354,17 +259,10 @@ class ExerciseCatalogService {
     return response.count;
   }
 
-  // ============================================================
-  // CACHE HELPERS
-  // ============================================================
-
-  void _cacheExercises(
-    List<ExerciseCatalogModel> exercises,
-  ) {
+  // CACHE HELPER
+  void _cacheExercises(List<ExerciseCatalogModel> exercises) {
     for (final exercise in exercises) {
-      _nameCache[
-        normalizeExerciseName(exercise.exerciseName)
-      ] = exercise;
+      _nameCache[normalizeExerciseName(exercise.exerciseName)] = exercise;
 
       if (exercise.exerciseDbId.isNotEmpty) {
         _idCache[exercise.exerciseDbId] = exercise;
@@ -377,10 +275,7 @@ class ExerciseCatalogService {
     _idCache.clear();
   }
 
-  // ============================================================
   // NAME CLEANING
-  // ============================================================
-
   String _cleanExerciseName(String name) {
     var cleaned = name.toLowerCase().trim();
 
@@ -402,33 +297,58 @@ class ExerciseCatalogService {
       cleaned = cleaned.replaceAll(entry.key, ' ');
     }
 
-    return cleaned
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  // ============================================================
-  // BEST CANDIDATE
-  // ============================================================
+  // SAFE EXERCISE ALIASES
+  String? _getAlias(String name) {
+    final normalized = normalizeExerciseName(name);
 
+    const aliases = <String, String>{
+      'flat bench press barbell': 'barbell bench press',
+      'flat barbell bench press': 'barbell bench press',
+
+      'flat bench press dumbbell': 'dumbbell bench press',
+      'flat dumbbell bench press': 'dumbbell bench press',
+
+      'db bench press': 'dumbbell bench press',
+      'db chest press': 'dumbbell bench press',
+
+      'incline bench press barbell': 'incline barbell bench press',
+      'incline barbell bench press': 'incline barbell bench press',
+
+      'incline bench press dumbbell': 'incline dumbbell bench press',
+      'incline dumbbell bench press': 'incline dumbbell bench press',
+
+      'shoulder bench press': 'shoulder press',
+      'barbell shoulder press': 'barbell shoulder press',
+
+      'tricep pushdown': 'triceps pushdown',
+
+      'overhead tricep extension': 'triceps overhead extension',
+      'overhead triceps extension': 'triceps overhead extension',
+
+      'romanian deadlift': 'romanian deadlift',
+
+      'lat pull down': 'lat pulldown',
+    };
+
+    return aliases[normalized];
+  }
+
+  // BEST CANDIDATE
   ExerciseCatalogModel _chooseBestCandidate(
     String normalizedQuery,
     List<ExerciseCatalogModel> candidates,
   ) {
     final queryWords = normalizeExerciseName(
       normalizedQuery,
-    )
-        .split(' ')
-        .where((word) => word.isNotEmpty)
-        .toSet();
+    ).split(' ').where((word) => word.isNotEmpty).toSet();
 
     int score(ExerciseCatalogModel candidate) {
-      final candidateName = normalizeExerciseName(
-        candidate.exerciseName,
-      );
+      final candidateName = normalizeExerciseName(candidate.exerciseName);
 
-      final candidateWords =
-          candidateName.split(' ').toSet();
+      final candidateWords = candidateName.split(' ').toSet();
 
       var result = 0;
 
@@ -445,26 +365,20 @@ class ExerciseCatalogService {
       }
 
       // Prefer a record with a usable GIF.
-      if (candidate.gifUrl != null &&
-          candidate.gifUrl!.trim().isNotEmpty) {
+      if (candidate.gifUrl != null && candidate.gifUrl!.trim().isNotEmpty) {
         result += 5;
       }
 
       return result;
     }
 
-    candidates.sort(
-      (a, b) => score(b).compareTo(score(a)),
-    );
+    candidates.sort((a, b) => score(b).compareTo(score(a)));
 
     return candidates.first;
   }
 }
 
-// ================================================================
 // PAGINATION RESULT
-// ================================================================
-
 class ExerciseCatalogPage {
   final List<ExerciseCatalogModel> exercises;
   final int page;

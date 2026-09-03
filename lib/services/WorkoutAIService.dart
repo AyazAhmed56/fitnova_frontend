@@ -545,6 +545,72 @@ commonMistakes
 substituteExercises
 tips
 
+====================================================
+ALTERNATIVE EXERCISES / substituteExercises
+====================================================
+
+For EVERY main workout exercise, provide EXACTLY TWO
+alternative exercises.
+
+The alternatives must:
+
+- train the same primary muscle group or movement pattern
+- be realistic substitutes for the main exercise
+- respect the user's equipment
+- respect the user's workout location
+- respect the user's fitness experience
+- be standard internationally recognized exercise names
+- be concise
+- NOT contain sets or reps
+- NOT contain explanations
+- NOT contain GIF URLs
+- NOT contain ExerciseDB IDs
+
+IMPORTANT:
+
+Return EXACTLY TWO alternatives.
+
+Never return:
+- zero alternatives
+- one alternative
+- more than two alternatives
+- fictional exercise names
+
+Example:
+
+"exerciseName": "Barbell Bench Press",
+
+"substituteExercises": [
+  "Dumbbell Bench Press",
+  "Machine Chest Press"
+]
+
+ALTERNATIVE EXERCISE SELECTION
+
+Whenever possible, select alternatives from the preferred
+exercise library already provided in this prompt.
+
+The alternatives should be different from the main exercise.
+
+Do not suggest an exercise that requires equipment unavailable
+to the user.
+
+For example:
+
+Main:
+"Barbell Bench Press"
+
+Good alternatives:
+"Dumbbell Bench Press"
+"Machine Chest Press"
+
+Bad alternatives:
+"Barbell Bench Press"
+"Chest Power Builder"
+
+The alternatives are suggestions for the user, not additional
+workout exercises.
+
 IMPORTANT:
 
 muscleGroup and secondaryMuscles here are programming guidance.
@@ -755,7 +821,10 @@ Return exactly this structure:
           "instructions": [],
           "precautions": [],
           "commonMistakes": [],
-          "substituteExercises": [],
+          "substituteExercises": [
+             "Dumbbell Bench Press",
+             "Machine Chest Press"
+          ],
           "tips": []
         }
       ],

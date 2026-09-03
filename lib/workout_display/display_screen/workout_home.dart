@@ -3,11 +3,10 @@ import 'dart:ui';
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:fitnova/settings/settings.dart';
+import 'package:fitnova/workout_display/display_screen/exercise_library.dart';
 import 'package:fitnova/workout_display/display_screen/weekly_workout_plan.dart';
-import 'package:fitnova/workout_display/display_screen/workout_history.dart';
 import 'package:fitnova/workout_display/display_screen/workout_progress.dart';
 import 'package:fitnova/workout_display/display_screen/workout_search.dart';
-import 'package:fitnova/workout_display/display_screen/workout_session.dart';
 import 'package:fitnova/workout_display/display_screen/workout_summary.dart';
 
 import 'package:flutter/material.dart';
@@ -293,20 +292,6 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                             );
                           }),
 
-                          _actionCard(
-                            Icons.play_circle_fill,
-                            "Start Workout",
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      WorkoutSessionScreen(workoutDay: today),
-                                ),
-                              );
-                            },
-                          ),
-
                           _actionCard(Icons.show_chart, "Progress", () {
                             Navigator.push(
                               context,
@@ -316,11 +301,11 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                             );
                           }),
 
-                          _actionCard(Icons.history, "History", () {
+                          _actionCard(Icons.library_add, "Exercise Library", () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const WorkoutHistoryScreen(),
+                                builder: (_) => const ExerciseLibraryScreen(),
                               ),
                             );
                           }),
