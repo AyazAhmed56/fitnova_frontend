@@ -244,7 +244,7 @@ class _DietHomeState extends State<DietHome> {
                                                 if (user == null) return null;
 
                                                 await SupabaseService()
-                                                    .generateAndSavePlans(
+                                                    .generateAndSaveMealPlan(
                                                       user.id,
                                                     );
 

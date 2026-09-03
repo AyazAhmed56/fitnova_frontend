@@ -317,6 +317,7 @@ class SupabaseService {
 
     return response != null;
   }
+
   //==========================================================
   // WORKOUT PLAN
   //==========================================================
@@ -494,6 +495,7 @@ class SupabaseService {
 
     return "$minutes Min";
   }
+
   //==========================================================
   // AI GENERATION
   //==========================================================
@@ -550,44 +552,31 @@ class SupabaseService {
     final profile = await getUserProfile(uid);
 
     if (profile == null) {
-      throw Exception("User profile not found.");
+      throw Exception("Profile not found.");
     }
 
-    final results = await Future.wait([
-      AIService().generateMealPlan(profile),
-      WorkoutAIService().generateWorkoutPlan(profile),
-    ]);
-
-    final mealPlan = Map<String, dynamic>.from(results[0]);
-    final workoutPlan = Map<String, dynamic>.from(results[1]);
+    // Generate and save meal independently.
+    final mealPlan = await AIService().generateMealPlan(profile);
 
     final generatedAt = DateTime.now();
 
-    final mealExpiry = generatedAt.add(mealPlanExpiry);
-    final workoutExpiry = generatedAt.add(workoutPlanExpiry);
+    final updatedMealPlan = {
+      ...mealPlan,
+      "generatedAt": generatedAt.toIso8601String(),
+      "expiresAt": generatedAt.add(mealPlanExpiry).toIso8601String(),
+    };
 
-    mealPlan["generatedAt"] = generatedAt.toIso8601String();
-    mealPlan["expiresAt"] = mealExpiry.toIso8601String();
+    await saveMealPlan(uid, updatedMealPlan);
 
-    workoutPlan["generatedAt"] = generatedAt.toIso8601String();
-    workoutPlan["expiresAt"] = workoutExpiry.toIso8601String();
+    // Generate and save workout independently.
+    final workoutPlan = await WorkoutAIService().generateWorkoutPlan(profile);
 
-    await Future.wait([
-      _supabase.from('meal_plans').upsert({
-        'user_id': uid,
-        'generated_at': generatedAt.toIso8601String(),
-        'expires_at': mealExpiry.toIso8601String(),
-        'plan': mealPlan,
-        'is_active': true,
-      }),
+    final updatedWorkoutPlan = {
+      ...workoutPlan,
+      "generatedAt": generatedAt.toIso8601String(),
+      "expiresAt": generatedAt.add(workoutPlanExpiry).toIso8601String(),
+    };
 
-      _supabase.from('workout_plans').upsert({
-        'user_id': uid,
-        'generated_at': generatedAt.toIso8601String(),
-        'expires_at': workoutExpiry.toIso8601String(),
-        'plan': workoutPlan,
-        'is_active': true,
-      }),
-    ]);
+    await saveWorkoutPlan(uid, updatedWorkoutPlan);
   }
 }
