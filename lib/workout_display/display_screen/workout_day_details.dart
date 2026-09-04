@@ -131,6 +131,7 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
               _Section(
                 title: 'Main Workout',
                 icon: Icons.fitness_center,
+                initiallyExpanded: true,
                 child: FutureBuilder<List<ExerciseModel>>(
                   future: _enrichedExercisesFuture,
                   builder: (context, snapshot) {
@@ -332,264 +333,534 @@ class _Header extends StatelessWidget {
 // EXERCISE CARD
 // ============================================================
 
-class _ExerciseCard extends StatelessWidget {
+class _ExerciseCard extends StatefulWidget {
   final ExerciseModel exercise;
   final int number;
 
-  const _ExerciseCard({required this.exercise, required this.number});
+  const _ExerciseCard({
+    required this.exercise,
+    required this.number,
+  });
+
+  @override
+  State<_ExerciseCard> createState() => _ExerciseCardState();
+}
+
+class _ExerciseCardState extends State<_ExerciseCard> {
+  bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
+    final exercise = widget.exercise;
     final instructions = exercise.effectiveInstructions;
     final secondaryMuscles = exercise.effectiveSecondaryMuscles;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ==================================================
-          // SUPABASE / EXERCISEDB GIF
-          // ==================================================
-          if (exercise.hasGif) _GifViewer(gifUrl: exercise.gifUrl!),
 
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(radius: 17, child: Text('$number')),
+          // ==========================================================
+          // COLLAPSED / EXPANDED GIF
+          // ==========================================================
+
+          if (_isExpanded && exercise.hasGif)
+            _GifViewer(
+              gifUrl: exercise.gifUrl!,
+            ),
+
+          // ==========================================================
+          // EXERCISE HEADER
+          // ==========================================================
+
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              child: Row(
+                children: [
+
+                  // ==================================================
+                  // NUMBER
+                  // ==================================================
+
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE4DD),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      '${widget.number}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6D574A),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 9),
+
+                  // ==================================================
+                  // SMALL GIF ONLY WHEN COLLAPSED
+                  // ==================================================
+
+                  if (!_isExpanded) ...[
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F3EF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: exercise.hasGif
+                          ? Image.network(
+                              exercise.gifUrl!,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                if (loadingProgress == null) {
+                                  return child;
+                                }
+
+                                return const Center(
+                                  child: SizedBox(
+                                    width: 17,
+                                    height: 17,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder:
+                                  (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.fitness_center,
+                                  size: 23,
+                                  color: Color(0xFF8C7768),
+                                );
+                              },
+                            )
+                          : const Icon(
+                              Icons.fitness_center,
+                              size: 23,
+                              color: Color(0xFF8C7768),
+                            ),
+                    ),
 
                     const SizedBox(width: 10),
+                  ],
 
-                    Expanded(
-                      child: Text(
-                        exercise.exerciseName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  // ==================================================
+                  // EXERCISE NAME
+                  // ==================================================
+
+                  Expanded(
+                    child: Text(
+                      exercise.exerciseName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF3E3028),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  // ==================================================
+                  // DROPDOWN ARROW
+                  // ==================================================
+
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.5 : 0,
+                    duration: const Duration(
+                      milliseconds: 200,
+                    ),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 27,
+                      color: Color(0xFF6D574A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ==========================================================
+          // EXPANDED DETAILS
+          // ==========================================================
+
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+
+            crossFadeState: _isExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+
+            firstChild: const SizedBox.shrink(),
+
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                15,
+                0,
+                15,
+                18,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  const Divider(
+                    height: 1,
+                    color: Color(0xFFEDE4DD),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // ==================================================
+                  // WORKOUT DETAILS
+                  // ==================================================
+
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+
+                      if (exercise.sets.isNotEmpty)
+                        _Chip(
+                          '${exercise.sets} sets',
+                        ),
+
+                      if (exercise.reps.isNotEmpty)
+                        _Chip(
+                          '${exercise.reps} reps',
+                        ),
+
+                      if (exercise.duration.isNotEmpty)
+                        _Chip(
+                          exercise.duration,
+                        ),
+
+                      if (exercise.rest.isNotEmpty)
+                        _Chip(
+                          'Rest ${exercise.rest}',
+                        ),
+
+                      if (exercise.tempo.isNotEmpty)
+                        _Chip(
+                          'Tempo ${exercise.tempo}',
+                        ),
+                    ],
+                  ),
+
+                  // ==================================================
+                  // TARGET MUSCLES
+                  // ==================================================
+
+                  if (exercise.targetMuscles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+
+                    const _Label(
+                      title: 'Target Muscles',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      exercise.targetMuscles.join(', '),
+                    ),
+                  ],
+
+                  // ==================================================
+                  // SECONDARY MUSCLES
+                  // ==================================================
+
+                  if (secondaryMuscles.isNotEmpty) ...[
+                    const SizedBox(height: 13),
+
+                    const _Label(
+                      title: 'Secondary Muscles',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      secondaryMuscles.join(', '),
+                    ),
+                  ],
+
+                  // ==================================================
+                  // BODY PART
+                  // ==================================================
+
+                  if (exercise.bodyParts.isNotEmpty) ...[
+                    const SizedBox(height: 13),
+
+                    const _Label(
+                      title: 'Body Part',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      exercise.bodyParts.join(', '),
+                    ),
+                  ],
+
+                  // ==================================================
+                  // EQUIPMENT
+                  // ==================================================
+
+                  if (exercise.equipmentRequired
+                      .trim()
+                      .isNotEmpty) ...[
+                    const SizedBox(height: 13),
+
+                    const _Label(
+                      title: 'Equipment',
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      exercise.equipmentRequired,
+                    ),
+                  ],
+
+                  // ==================================================
+                  // HOW TO PERFORM
+                  // ==================================================
+
+                  if (instructions.isNotEmpty) ...[
+                    const SizedBox(height: 17),
+
+                    const _Label(
+                      title: 'How To Perform',
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    ...List.generate(
+                      instructions.length,
+                      (index) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: 7),
+                        child: Row(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+
+                            Container(
+                              width: 22,
+                              height: 22,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color:
+                                    const Color(0xFFEDE4DD),
+                                borderRadius:
+                                    BorderRadius.circular(7),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color:
+                                      Color(0xFF6D574A),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            Expanded(
+                              child: Text(
+                                instructions[index],
+                                style: const TextStyle(
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ],
-                ),
 
-                // if (exercise.hasCatalogData) ...[
-                //   const SizedBox(height: 8),
-                //   Row(
-                //     children: [
-                //       const Icon(
-                //         Icons.verified_outlined,
-                //         size: 16,
-                //         color: Color(0xFF6D574A),
-                //       ),
-                //       const SizedBox(width: 5),
-                //       const Expanded(
-                //         child: Text(
-                //           'ExerciseDB catalog matched',
-                //           style: TextStyle(
-                //             fontSize: 12,
-                //             color: Color(0xFF6D574A),
-                //             fontWeight: FontWeight.w600,
-                //           ),
-                //         ),
-                //       ),
-                //     ],
-                //   ),
-                // ],
-                const SizedBox(height: 14),
+                  // ==================================================
+                  // ALTERNATIVE EXERCISES
+                  // ==================================================
 
-                // Gemini programming data is preserved.
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (exercise.sets.isNotEmpty)
-                      _Chip('${exercise.sets} sets'),
+                  if (exercise
+                      .substituteExercises
+                      .isNotEmpty) ...[
+                    const SizedBox(height: 17),
 
-                    if (exercise.reps.isNotEmpty)
-                      _Chip('${exercise.reps} reps'),
-
-                    if (exercise.duration.isNotEmpty) _Chip(exercise.duration),
-
-                    if (exercise.rest.isNotEmpty)
-                      _Chip('Rest ${exercise.rest}'),
-
-                    if (exercise.tempo.isNotEmpty)
-                      _Chip('Tempo ${exercise.tempo}'),
-                  ],
-                ),
-
-                if (exercise.targetMuscles.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  const _Label(title: 'Target Muscles'),
-                  const SizedBox(height: 6),
-                  Text(exercise.targetMuscles.join(', ')),
-                ],
-
-                if (secondaryMuscles.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const _Label(title: 'Secondary Muscles'),
-                  const SizedBox(height: 6),
-                  Text(secondaryMuscles.join(', ')),
-                ],
-
-                if (exercise.bodyParts.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const _Label(title: 'Body Part'),
-                  const SizedBox(height: 6),
-                  Text(exercise.bodyParts.join(', ')),
-                ],
-
-                if (exercise.equipmentRequired.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const _Label(title: 'Equipment'),
-                  const SizedBox(height: 6),
-                  Text(exercise.equipmentRequired),
-                ],
-
-                // Supabase / ExerciseDB instructions take priority.
-                if (instructions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const _Label(title: 'How To Perform'),
-                  const SizedBox(height: 8),
-                  ...List.generate(
-                    instructions.length,
-                    (index) => Padding(
-                      padding: const EdgeInsets.only(bottom: 7),
-                      child: Text(instructions[index]),
+                    const _Label(
+                      title: 'Alternative Exercises',
                     ),
-                  ),
-                ],
 
-                // ALTERNATIVE EXERCISES
-                if (exercise.substituteExercises.isNotEmpty) ...[
-                  const SizedBox(height: 18),
+                    const SizedBox(height: 8),
 
-                  const _Label(title: 'Alternative Exercises'),
+                    ...exercise.substituteExercises
+                        .take(2)
+                        .toList()
+                        .asMap()
+                        .entries
+                        .map(
+                          (entry) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
 
-                  const SizedBox(height: 8),
-
-                  ...exercise.substituteExercises
-                      .take(2)
-                      .toList()
-                      .asMap()
-                      .entries
-                      .map(
-                        (entry) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 28,
-                                height: 28,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEDE4DD),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '${entry.key + 1}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        const Color(0xFFEDE4DD),
+                                    borderRadius:
+                                        BorderRadius.circular(9),
+                                  ),
+                                  child: Text(
+                                    '${entry.key + 1}',
+                                    style: const TextStyle(
+                                      fontWeight:
+                                          FontWeight.bold,
+                                      color:
+                                          Color(0xFF6D574A),
+                                    ),
                                   ),
                                 ),
-                              ),
 
-                              const SizedBox(width: 10),
+                                const SizedBox(width: 10),
 
-                              Expanded(
-                                child: Text(
-                                  entry.value,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                Expanded(
+                                  child: Text(
+                                    entry.value,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight:
+                                          FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                        ),
+                  ],
+
+                  // ==================================================
+                  // TRAINER TIPS
+                  // ==================================================
+
+                  if (exercise.tips.isNotEmpty) ...[
+                    const SizedBox(height: 17),
+
+                    const _Label(
+                      title: 'Trainer Tips',
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    ...exercise.tips.map(
+                      (tip) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '• $tip',
+                          style: const TextStyle(
+                            height: 1.35,
                           ),
                         ),
                       ),
-                ],
-
-                // Gemini trainer guidance is preserved.
-                if (exercise.tips.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const _Label(title: 'Trainer Tips'),
-                  const SizedBox(height: 8),
-                  ...exercise.tips.map(
-                    (tip) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text('• $tip'),
                     ),
-                  ),
-                ],
+                  ],
 
-                if (exercise.precautions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const _Label(title: 'Precautions'),
-                  const SizedBox(height: 8),
-                  ...exercise.precautions.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text('• $item'),
+                  // ==================================================
+                  // PRECAUTIONS
+                  // ==================================================
+
+                  if (exercise.precautions.isNotEmpty) ...[
+                    const SizedBox(height: 17),
+
+                    const _Label(
+                      title: 'Precautions',
                     ),
-                  ),
-                ],
 
-                if (exercise.commonMistakes.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const _Label(title: 'Common Mistakes'),
-                  const SizedBox(height: 8),
-                  ...exercise.commonMistakes.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text('• $item'),
+                    const SizedBox(height: 8),
+
+                    ...exercise.precautions.map(
+                      (item) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '• $item',
+                          style: const TextStyle(
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
 
-                //   if (exercise.exerciseDbId != null &&
-                //       exercise.exerciseDbId!.trim().isNotEmpty) ...[
-                //     const SizedBox(height: 16),
-                //     Container(
-                //       width: double.infinity,
-                //       padding: const EdgeInsets.all(12),
-                //       decoration: BoxDecoration(
-                //         color: const Color(0xFFF4ECE6),
-                //         borderRadius: BorderRadius.circular(14),
-                //       ),
-                //       child: Row(
-                //         children: [
-                //           const Icon(
-                //             Icons.storage_rounded,
-                //             size: 17,
-                //             color: Color(0xFF6D574A),
-                //           ),
-                //           const SizedBox(width: 8),
-                //           Expanded(
-                //             child: Text(
-                //               'ExerciseDB ID: ${exercise.exerciseDbId}',
-                //               style: const TextStyle(
-                //                 fontSize: 12,
-                //                 color: Color(0xFF6D574A),
-                //                 fontWeight: FontWeight.w600,
-                //               ),
-                //             ),
-                //           ),
-                //         ],
-                //       ),
-                //     ),
-                //   ],
-              ],
+                  // ==================================================
+                  // COMMON MISTAKES
+                  // ==================================================
+
+                  if (exercise.commonMistakes.isNotEmpty) ...[
+                    const SizedBox(height: 17),
+
+                    const _Label(
+                      title: 'Common Mistakes',
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    ...exercise.commonMistakes.map(
+                      (item) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '• $item',
+                          style: const TextStyle(
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ],
@@ -597,7 +868,6 @@ class _ExerciseCard extends StatelessWidget {
     );
   }
 }
-
 // ============================================================
 // GIF VIEWER
 // ============================================================
@@ -687,47 +957,87 @@ class _RestDayCard extends StatelessWidget {
 // SECTION
 // ============================================================
 
-class _Section extends StatelessWidget {
+class _Section extends StatefulWidget {
   final String title;
   final IconData icon;
   final Widget child;
-
+  final bool initiallyExpanded;
   const _Section({
     required this.title,
     required this.icon,
     required this.child,
+    this.initiallyExpanded = false,
   });
+  @override
+  State<_Section> createState() => _SectionState();
+}
+
+class _SectionState extends State<_Section> {
+  late bool _isExpanded;
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+      elevation: 1,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: const Color(0xFFEDE4DD),
+          highlightColor: const Color(0xFFF4ECE6),
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: widget.initiallyExpanded,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _isExpanded = expanded;
+            });
+          },
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEDE4DD),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(widget.icon, color: const Color(0xFF6D574A), size: 22),
+          ),
+          title: Text(
+            widget.title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF3E3028),
+            ),
+          ),
+          trailing: AnimatedRotation(
+            turns: _isExpanded ? 0.5 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Color(0xFF6D574A),
+              size: 28,
+            ),
+          ),
+          children: [
+            const Divider(height: 1, color: Color(0xFFEDE4DD)),
             const SizedBox(height: 14),
-            child,
+            widget.child,
           ],
         ),
       ),
     );
   }
 }
-
 // ============================================================
 // SMALL WIDGETS
 // ============================================================

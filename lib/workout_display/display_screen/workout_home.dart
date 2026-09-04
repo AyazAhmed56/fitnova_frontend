@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:fitnova/settings/settings.dart';
@@ -7,11 +6,9 @@ import 'package:fitnova/workout_display/display_screen/exercise_library.dart';
 import 'package:fitnova/workout_display/display_screen/weekly_workout_plan.dart';
 import 'package:fitnova/workout_display/display_screen/workout_progress.dart';
 import 'package:fitnova/workout_display/display_screen/workout_search.dart';
-import 'package:fitnova/workout_display/display_screen/workout_summary.dart';
-
+// import 'package:fitnova/workout_display/display_screen/workout_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/workout_day_model.dart';
 import '../models/workout_plan_model.dart';
 import '../services/workout_repository.dart';
@@ -310,14 +307,14 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                             );
                           }),
 
-                          _actionCard(Icons.insights, "Summary", () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const WorkoutSummaryScreen(),
-                              ),
-                            );
-                          }),
+                          // _actionCard(Icons.insights, "Summary", () {
+                          //   Navigator.push(
+                          //     context,
+                          //     MaterialPageRoute(
+                          //       builder: (_) => const WorkoutSummaryScreen(),
+                          //     ),
+                          //   );
+                          // }),
 
                           _actionCard(Icons.settings, "Settings", () {
                             Navigator.push(
