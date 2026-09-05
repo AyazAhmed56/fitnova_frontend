@@ -174,18 +174,18 @@ class WorkoutAIService {
           .select('exercise_name, normalized_name')
           .order('normalized_name');
 
-      if (response is! List) {
-        throw Exception('Invalid exercise catalog response.');
-      }
+      // if (response is! List) {
+      //   throw Exception('Invalid exercise catalog response.');
+      // }
 
       final List<Map<String, String>> catalog = [];
 
       final Set<String> seenNormalizedNames = {};
 
       for (final row in response) {
-        if (row is! Map) {
-          continue;
-        }
+        // if (row is! Map) {
+        //   continue;
+        // }
 
         final normalizedName = row['normalized_name']?.toString().trim() ?? '';
 

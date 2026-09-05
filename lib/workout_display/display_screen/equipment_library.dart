@@ -1,246 +1,1059 @@
-import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-
-import '../models/exercise_catalog_model.dart';
-import '../models/exercise_model.dart';
-import '../models/workout_day_model.dart';
-import '../services/exercise_catalog_service.dart';
-import '../widget/equipment_chip.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EquipmentLibraryScreen extends StatefulWidget {
-  final WorkoutDayModel workoutDay;
-
-  const EquipmentLibraryScreen({super.key, required this.workoutDay});
+  const EquipmentLibraryScreen({super.key});
 
   @override
   State<EquipmentLibraryScreen> createState() => _EquipmentLibraryScreenState();
 }
 
 class _EquipmentLibraryScreenState extends State<EquipmentLibraryScreen> {
-  final ExerciseCatalogService _catalogService =
-      ExerciseCatalogService.instance;
+  // ===========================================================================
+  // SUPABASE
+  // ===========================================================================
 
-  late Future<List<_ExerciseEquipmentData>> _equipmentFuture;
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  // ===========================================================================
+  // CONTROLLERS
+  // ===========================================================================
+
+  final TextEditingController _searchController = TextEditingController();
+
+  Timer? _searchDebounce;
+
+  // ===========================================================================
+  // DATA
+  // ===========================================================================
+
+  final List<_EquipmentData> _equipment = [];
+
+  String _search = '';
+
+  bool _isLoading = true;
+
+  String? _errorMessage;
+
+  int _totalEquipment = 0;
+
+  // ===========================================================================
+  // INIT
+  // ===========================================================================
 
   @override
   void initState() {
     super.initState();
-    _equipmentFuture = _loadEquipment();
+
+    _loadEquipment();
   }
 
-  Future<List<_ExerciseEquipmentData>> _loadEquipment() async {
-    return Future.wait(
-      widget.workoutDay.workout.map((exercise) async {
-        try {
-          final catalog =
-              await _catalogService.findBestMatch(exercise.exerciseName);
+  // ===========================================================================
+  // LOAD EQUIPMENT
+  // ===========================================================================
 
-          return _ExerciseEquipmentData(
-            geminiExercise: exercise,
-            catalog: catalog,
-          );
-        } catch (_) {
-          return _ExerciseEquipmentData(
-            geminiExercise: exercise,
-            catalog: null,
-          );
-        }
-      }),
-    );
-  }
+  Future<void> _loadEquipment() async {
+    if (!mounted) return;
 
-  List<String> _equipmentList(List<_ExerciseEquipmentData> data) {
-    final equipment = <String>{};
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    for (final item in data) {
-      final catalogEquipment = item.catalog?.equipments ?? const <String>[];
+    try {
+      final response = await _supabase
+          .from('equipment_catalog')
+          .select(
+            'id, equipment_name, normalized_name, category, image_url, description',
+          )
+          .order('equipment_name');
 
-      if (catalogEquipment.isNotEmpty) {
-        equipment.addAll(
-          catalogEquipment
-              .map((e) => e.trim())
-              .where((e) => e.isNotEmpty),
+      final List<_EquipmentData> loadedEquipment = [];
+
+      for (final row in response) {
+        final String name = row['equipment_name']?.toString().trim() ?? '';
+
+        if (name.isEmpty) continue;
+
+        loadedEquipment.add(
+          _EquipmentData(
+            id: row['id']?.toString() ?? '',
+            name: name,
+            normalizedName: row['normalized_name']?.toString().trim() ?? '',
+            category: row['category']?.toString().trim() ?? '',
+            imageUrl: row['image_url']?.toString().trim() ?? '',
+            description: row['description']?.toString().trim() ?? '',
+          ),
         );
-        continue;
       }
 
-      final geminiEquipment = item.geminiExercise.equipmentRequired.trim();
+      if (!mounted) return;
 
-      if (geminiEquipment.isEmpty) continue;
+      setState(() {
+        _equipment
+          ..clear()
+          ..addAll(loadedEquipment);
 
-      equipment.addAll(
-        geminiEquipment
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty),
-      );
+        _totalEquipment = loadedEquipment.length;
+
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = _cleanErrorMessage(e);
+      });
     }
-
-    return equipment.toList()..sort();
   }
 
-  void _reload() {
+  // ===========================================================================
+  // SEARCH
+  // ===========================================================================
+
+  void _onSearchChanged(String value) {
     setState(() {
-      _equipmentFuture = _loadEquipment();
+      _search = value;
+    });
+
+    _searchDebounce?.cancel();
+
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+
+      setState(() {});
     });
   }
 
+  // ===========================================================================
+  // CLEAR SEARCH
+  // ===========================================================================
+
+  void _clearSearch() {
+    _searchDebounce?.cancel();
+
+    _searchController.clear();
+
+    setState(() {
+      _search = '';
+    });
+  }
+
+  // ===========================================================================
+  // FILTER EQUIPMENT
+  // ===========================================================================
+
+  List<_EquipmentData> get _filteredEquipment {
+    final String query = _search.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      return _equipment;
+    }
+
+    return _equipment.where((equipment) {
+      return equipment.name.toLowerCase().contains(query) ||
+          equipment.normalizedName.toLowerCase().contains(query) ||
+          equipment.category.toLowerCase().contains(query) ||
+          equipment.description.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  // ===========================================================================
+  // ERROR CLEANUP
+  // ===========================================================================
+
+  String _cleanErrorMessage(Object error) {
+    final String message = error.toString();
+
+    if (message.startsWith('Exception: ')) {
+      return message.replaceFirst('Exception: ', '');
+    }
+
+    return message;
+  }
+
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+
+    super.dispose();
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
+
   @override
   Widget build(BuildContext context) {
-    final sw = MediaQuery.of(context).size.width;
-    final sh = MediaQuery.of(context).size.height;
+    final double sw = MediaQuery.of(context).size.width;
 
     return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
+      // =======================================================================
+      // SAME BACKGROUND AS EXERCISE LIBRARY
+      // =======================================================================
+      decoration: const BoxDecoration(
         image: DecorationImage(
-          image: const AssetImage('assets/workout_background.png'),
+          image: AssetImage('assets/workout_background.png'),
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.white.withOpacity(0.9),
-            BlendMode.modulate,
-          ),
         ),
       ),
+
       child: Scaffold(
         backgroundColor: Colors.transparent,
+
+        // =====================================================================
+        // APP BAR
+        // =====================================================================
         appBar: AppBar(
           elevation: 0,
           centerTitle: true,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
+
           title: const Text(
             'Equipment Library',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
+
           actions: [
             IconButton(
-              onPressed: _reload,
+              onPressed: _loadEquipment,
+              tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh catalog',
             ),
           ],
         ),
-        body: FutureBuilder<List<_ExerciseEquipmentData>>(
-          future: _equipmentFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
 
-            final data = snapshot.data ?? const <_ExerciseEquipmentData>[];
-            final equipments = _equipmentList(data);
+        // =====================================================================
+        // BODY
+        // =====================================================================
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
 
-            if (equipments.isEmpty) {
-              return const Center(
-                child: Text(
-                  'No Equipment Required',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }
+              // =================================================================
+              // HEADER
+              // =================================================================
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
 
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: sh * .03),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 18),
+                child: Container(
+                  width: double.infinity,
 
-                  _HeaderCard(
-                    dayName: widget.workoutDay.dayName,
-                    focus: widget.workoutDay.focus,
-                    exerciseCount: widget.workoutDay.workout.length,
-                    equipmentCount: equipments.length,
-                    sw: sw,
+                  padding: const EdgeInsets.all(20),
+
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(.45),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withOpacity(.15)),
                   ),
 
-                  const SizedBox(height: 24),
+                  child: Row(
+                    children: [
+                      // =========================================================
+                      // ICON
+                      // =========================================================
+                      Container(
+                        width: 52,
+                        height: 52,
 
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
-                      'Required Equipment',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: sw * .050,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: equipments
-                          .map(
-                            (equipment) =>
-                                EquipmentChip(equipment: equipment),
-                          )
-                          .toList(),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
-                      "Equipment Used in Today's Workout",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: sw * .050,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  ...data.map(
-                    (item) => _ExerciseEquipmentCard(
-                      data: item,
-                      sw: sw,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.tips_and_updates,
-                          color: Colors.orange,
-                          size: 34,
+                        decoration: BoxDecoration(
+                          color: const Color(0xff7C4DFF).withOpacity(.18),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
+
+                        child: const Icon(
+                          Icons.fitness_center,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+
+                      const SizedBox(width: 14),
+
+                      // =========================================================
+                      // TITLE
+                      // =========================================================
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Equipment Library',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            Text(
+                              _totalEquipment > 0
+                                  ? '$_totalEquipment equipment available'
+                                  : 'Browse all equipment',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // =========================================================
+                      // COUNT
+                      // =========================================================
+                      if (_totalEquipment > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+
                           child: Text(
-                            'Arrange all required equipment before starting your workout to avoid interruptions and maintain workout intensity.',
-                            style: TextStyle(
+                            '${_filteredEquipment.length}/$_totalEquipment',
+                            style: const TextStyle(
                               color: Colors.white,
-                              height: 1.6,
-                              fontSize: sw * .039,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // =================================================================
+              // SEARCH BAR
+              // =================================================================
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+
+                child: TextField(
+                  controller: _searchController,
+
+                  onChanged: _onSearchChanged,
+
+                  textInputAction: TextInputAction.search,
+
+                  style: const TextStyle(color: Colors.black87),
+
+                  decoration: InputDecoration(
+                    hintText: 'Search equipment...',
+
+                    prefixIcon: const Icon(Icons.search),
+
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: _clearSearch,
+                          )
+                        : null,
+
+                    filled: true,
+                    fillColor: Colors.white,
+
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: const BorderSide(
+                        color: Color(0xff7C4DFF),
+                        width: 1.5,
+                      ),
+                    ),
+
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // =================================================================
+              // RESULT INFORMATION
+              // =================================================================
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _search.trim().isEmpty
+                            ? 'All Equipment'
+                            : 'Results for "${_search.trim()}"',
+
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: sw * .040,
+                          fontWeight: FontWeight.bold,
+                        ),
+
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+
+                    Text(
+                      '${_filteredEquipment.length} available',
+
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // =================================================================
+              // CONTENT
+              // =================================================================
+              Expanded(child: _buildContent()),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // CONTENT
+  // ===========================================================================
+
+  Widget _buildContent() {
+    // -------------------------------------------------------------------------
+    // LOADING
+    // -------------------------------------------------------------------------
+
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // ERROR
+    // -------------------------------------------------------------------------
+
+    if (_errorMessage != null) {
+      return _buildErrorState();
+    }
+
+    final List<_EquipmentData> filtered = _filteredEquipment;
+
+    // -------------------------------------------------------------------------
+    // EMPTY
+    // -------------------------------------------------------------------------
+
+    if (filtered.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    // -------------------------------------------------------------------------
+    // EQUIPMENT LIST
+    // -------------------------------------------------------------------------
+
+    return RefreshIndicator(
+      color: const Color(0xff7C4DFF),
+      onRefresh: _loadEquipment,
+
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
+
+        itemCount: filtered.length,
+
+        itemBuilder: (context, index) {
+          final _EquipmentData equipment = filtered[index];
+
+          return _EquipmentCard(equipment: equipment, index: index);
+        },
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // EMPTY STATE
+  // ===========================================================================
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 70,
+              color: Colors.white.withOpacity(.75),
+            ),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              'No equipment found',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              _search.isEmpty
+                  ? 'No equipment is available right now.'
+                  : 'Try searching with another equipment name.',
+
+              textAlign: TextAlign.center,
+
+              style: const TextStyle(color: Colors.white70),
+            ),
+
+            if (_search.isNotEmpty) ...[
+              const SizedBox(height: 18),
+
+              OutlinedButton(
+                onPressed: _clearSearch,
+
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white54),
+                ),
+
+                child: const Text('Clear Search'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // ERROR STATE
+  // ===========================================================================
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.white),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              'Unable to load equipment',
+              textAlign: TextAlign.center,
+
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              _errorMessage ?? 'Something went wrong.',
+
+              textAlign: TextAlign.center,
+
+              style: const TextStyle(color: Colors.white70),
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: _loadEquipment,
+
+              icon: const Icon(Icons.refresh),
+
+              label: const Text('Try Again'),
+
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xff7C4DFF),
+                foregroundColor: Colors.white,
+
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// EQUIPMENT DATA
+// =============================================================================
+
+class _EquipmentData {
+  final String id;
+  final String name;
+  final String normalizedName;
+  final String category;
+  final String imageUrl;
+  final String description;
+
+  _EquipmentData({
+    required this.id,
+    required this.name,
+    required this.normalizedName,
+    required this.category,
+    required this.imageUrl,
+    required this.description,
+  });
+}
+
+// =============================================================================
+// EQUIPMENT CARD
+// =============================================================================
+
+class _EquipmentCard extends StatefulWidget {
+  final _EquipmentData equipment;
+  final int index;
+
+  const _EquipmentCard({required this.equipment, required this.index});
+
+  @override
+  State<_EquipmentCard> createState() => _EquipmentCardState();
+}
+
+class _EquipmentCardState extends State<_EquipmentCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final _EquipmentData equipment = widget.equipment;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+
+      decoration: BoxDecoration(
+        // SAME CARD STYLE AS EXERCISE LIBRARY
+        color: Colors.black.withOpacity(.42),
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(color: Colors.white.withOpacity(.12)),
+      ),
+
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+
+        onTap: () {
+          setState(() {
+            _expanded = !_expanded;
+          });
+        },
+
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+
+          child: Column(
+            children: [
+              // =================================================================
+              // MAIN CARD ROW
+              // =================================================================
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+
+                children: [
+                  // =============================================================
+                  // EQUIPMENT IMAGE
+                  // =============================================================
+                  _EquipmentImage(imageUrl: equipment.imageUrl),
+
+                  const SizedBox(width: 14),
+
+                  // =============================================================
+                  // EQUIPMENT DETAILS
+                  // =============================================================
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                      children: [
+                        Text(
+                          equipment.name,
+
+                          maxLines: 2,
+
+                          overflow: TextOverflow.ellipsis,
+
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // =======================================================
+                        // CATEGORY
+                        // =======================================================
+                        if (equipment.category.isNotEmpty)
+                          _SmallInfoRow(
+                            icon: Icons.category_outlined,
+                            text: equipment.category,
+                          ),
+
+                        // =======================================================
+                        // NORMALIZED NAME
+                        // =======================================================
+                        if (equipment.normalizedName.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+
+                          _SmallInfoRow(
+                            icon: Icons.label_outline,
+                            text: equipment.normalizedName,
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+
+                        // =======================================================
+                        // VIEW DETAILS
+                        // =======================================================
+                        Row(
+                          children: [
+                            Text(
+                              _expanded ? 'Hide Details' : 'View Details',
+
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            const SizedBox(width: 4),
+
+                            AnimatedRotation(
+                              turns: _expanded ? .5 : 0,
+
+                              duration: const Duration(milliseconds: 200),
+
+                              child: Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                                color: Colors.white.withOpacity(.7),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
+
+                  const SizedBox(width: 8),
+
+                  // =============================================================
+                  // NUMBER
+                  // =============================================================
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+
+                    decoration: BoxDecoration(
+                      color: const Color(0xff7C4DFF).withOpacity(.25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+
+                    child: Text(
+                      '${widget.index + 1}',
+
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 ],
+              ),
+
+              // =================================================================
+              // EXPANDED DETAILS
+              // =================================================================
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 220),
+
+                crossFadeState: _expanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+
+                firstChild: const SizedBox.shrink(),
+
+                secondChild: _ExpandedEquipmentDetails(equipment: equipment),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// EXPANDED EQUIPMENT DETAILS
+// =============================================================================
+
+class _ExpandedEquipmentDetails extends StatelessWidget {
+  final _EquipmentData equipment;
+
+  const _ExpandedEquipmentDetails({required this.equipment});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+
+      children: [
+        const SizedBox(height: 14),
+
+        Divider(color: Colors.white.withOpacity(.12)),
+
+        const SizedBox(height: 14),
+
+        // =====================================================================
+        // LARGE IMAGE
+        // =====================================================================
+        if (equipment.imageUrl.isNotEmpty)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+
+            child: Container(
+              width: double.infinity,
+              height: 220,
+
+              color: Colors.white,
+
+              child: Image.network(
+                equipment.imageUrl,
+
+                fit: BoxFit.contain,
+
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
+
+                  return const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  );
+                },
+
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.grey,
+                      size: 42,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+        // =====================================================================
+        // NAME
+        // =====================================================================
+        const SizedBox(height: 16),
+
+        Text(
+          equipment.name,
+
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        // =====================================================================
+        // CATEGORY
+        // =====================================================================
+        if (equipment.category.isNotEmpty) ...[
+          const SizedBox(height: 10),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+
+            decoration: BoxDecoration(
+              color: const Color(0xff7C4DFF).withOpacity(.18),
+              borderRadius: BorderRadius.circular(20),
+
+              border: Border.all(
+                color: const Color(0xff7C4DFF).withOpacity(.25),
+              ),
+            ),
+
+            child: Text(
+              equipment.category,
+
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+
+        // =====================================================================
+        // DESCRIPTION
+        // =====================================================================
+        if (equipment.description.isNotEmpty) ...[
+          const SizedBox(height: 16),
+
+          const Text(
+            'About this equipment',
+
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          Text(
+            equipment.description,
+
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// EQUIPMENT IMAGE
+// =============================================================================
+
+class _EquipmentImage extends StatelessWidget {
+  final String imageUrl;
+
+  const _EquipmentImage({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 115;
+
+    // -------------------------------------------------------------------------
+    // NO IMAGE
+    // -------------------------------------------------------------------------
+
+    if (imageUrl.trim().isEmpty) {
+      return Container(
+        width: size,
+        height: size,
+
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.08),
+          borderRadius: BorderRadius.circular(18),
+        ),
+
+        child: const Icon(
+          Icons.fitness_center,
+          color: Colors.white54,
+          size: 40,
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // IMAGE
+    // -------------------------------------------------------------------------
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+
+      child: Container(
+        width: size,
+        height: size,
+
+        color: Colors.white,
+
+        child: Image.network(
+          imageUrl,
+
+          width: size,
+          height: size,
+
+          fit: BoxFit.cover,
+
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              return child;
+            }
+
+            return const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            );
+          },
+
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: Colors.grey,
+                size: 36,
               ),
             );
           },
@@ -250,302 +1063,36 @@ class _EquipmentLibraryScreenState extends State<EquipmentLibraryScreen> {
   }
 }
 
-class _ExerciseEquipmentData {
-  final ExerciseModel geminiExercise;
-  final ExerciseCatalogModel? catalog;
+// =============================================================================
+// SMALL INFO ROW
+// =============================================================================
 
-  const _ExerciseEquipmentData({
-    required this.geminiExercise,
-    required this.catalog,
-  });
-
-  String get equipment {
-    final catalogEquipment = catalog?.equipments ?? const <String>[];
-
-    if (catalogEquipment.isNotEmpty) {
-      return catalogEquipment.join(', ');
-    }
-
-    return geminiExercise.equipmentRequired;
-  }
-}
-
-class _HeaderCard extends StatelessWidget {
-  final String dayName;
-  final String focus;
-  final int exerciseCount;
-  final int equipmentCount;
-  final double sw;
-
-  const _HeaderCard({
-    required this.dayName,
-    required this.focus,
-    required this.exerciseCount,
-    required this.equipmentCount,
-    required this.sw,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(.15),
-            Colors.white.withOpacity(.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white.withOpacity(.25),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.15),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.fitness_center,
-                color: Colors.white,
-                size: 42,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  dayName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: sw * .060,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            focus,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: sw * .040,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _TopCard(
-                  title: 'Exercises',
-                  value: exerciseCount.toString(),
-                  icon: Icons.sports_gymnastics,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _TopCard(
-                  title: 'Equipment',
-                  value: equipmentCount.toString(),
-                  icon: Icons.handyman,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExerciseEquipmentCard extends StatelessWidget {
-  final _ExerciseEquipmentData data;
-  final double sw;
-
-  const _ExerciseEquipmentCard({
-    required this.data,
-    required this.sw,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final exercise = data.geminiExercise;
-    final catalog = data.catalog;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(.15),
-              Colors.white.withOpacity(.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: Colors.white.withOpacity(.25),
-            width: 1.5,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              catalog?.exerciseName ?? exercise.exerciseName,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: sw * .044,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              exercise.exerciseType,
-              style: TextStyle(color: Colors.grey.shade200),
-            ),
-            const SizedBox(height: 16),
-            EquipmentChip(
-              equipment: data.equipment.isEmpty ? 'No equipment' : data.equipment,
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoCard(
-                    icon: Icons.repeat,
-                    title: 'Sets',
-                    value: exercise.sets,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _InfoCard(
-                    icon: Icons.fitness_center,
-                    title: 'Reps',
-                    value: exercise.reps,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _InfoCard(
-                    icon: Icons.timer_outlined,
-                    title: 'Rest',
-                    value: exercise.rest,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TopCard extends StatelessWidget {
-  final String title;
-  final String value;
+class _SmallInfoRow extends StatelessWidget {
   final IconData icon;
+  final String text;
 
-  const _TopCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
+  const _SmallInfoRow({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.15),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 30),
-              const SizedBox(width: 8),
-              Text(title, style: const TextStyle(color: Colors.white70)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: Colors.white70),
 
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
+        const SizedBox(width: 7),
 
-  const _InfoCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
+        Expanded(
+          child: Text(
+            text,
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+            maxLines: 1,
+
+            overflow: TextOverflow.ellipsis,
+
+            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value.isEmpty ? '-' : value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

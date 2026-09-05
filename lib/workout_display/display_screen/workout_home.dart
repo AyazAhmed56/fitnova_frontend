@@ -2,11 +2,12 @@ import 'dart:ui';
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:fitnova/settings/settings.dart';
+import 'package:fitnova/workout_display/display_screen/equipment_library.dart';
 import 'package:fitnova/workout_display/display_screen/exercise_library.dart';
 import 'package:fitnova/workout_display/display_screen/weekly_workout_plan.dart';
 import 'package:fitnova/workout_display/display_screen/workout_progress.dart';
 import 'package:fitnova/workout_display/display_screen/workout_search.dart';
-// import 'package:fitnova/workout_display/display_screen/workout_summary.dart';
+import 'package:fitnova/workout_display/display_screen/today_workout_plan.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_day_model.dart';
@@ -280,6 +281,15 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                         crossAxisSpacing: 14,
                         childAspectRatio: 1.45,
                         children: [
+                          _actionCard(Icons.calendar_month, "Today's Plan", () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TodayWorkoutPlan(),
+                              ),
+                            );
+                          }),
+
                           _actionCard(Icons.calendar_month, "Weekly Plan", () {
                             Navigator.push(
                               context,
@@ -289,6 +299,32 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                             );
                           }),
 
+                          _actionCard(
+                            Icons.library_add,
+                            "Exercise Library",
+                            () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ExerciseLibraryScreen(),
+                                ),
+                              );
+                            },
+                          ),
+
+                          _actionCard(
+                            Icons.library_add,
+                            "Equipment Library",
+                            () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EquipmentLibraryScreen(),
+                                ),
+                              );
+                            },
+                          ),
+
                           _actionCard(Icons.show_chart, "Progress", () {
                             Navigator.push(
                               context,
@@ -297,24 +333,6 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                               ),
                             );
                           }),
-
-                          _actionCard(Icons.library_add, "Exercise Library", () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ExerciseLibraryScreen(),
-                              ),
-                            );
-                          }),
-
-                          // _actionCard(Icons.insights, "Summary", () {
-                          //   Navigator.push(
-                          //     context,
-                          //     MaterialPageRoute(
-                          //       builder: (_) => const WorkoutSummaryScreen(),
-                          //     ),
-                          //   );
-                          // }),
 
                           _actionCard(Icons.settings, "Settings", () {
                             Navigator.push(
@@ -716,7 +734,7 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 14,
                 ),
               ),
             ],
