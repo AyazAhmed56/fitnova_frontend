@@ -136,10 +136,15 @@ class _SettingsState extends State<Settings> {
       if (!mounted) return;
 
       _showMessage("New workout plan generated successfully.", Colors.green);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('========== WORKOUT GENERATION ERROR ==========');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('==============================================');
+
       if (!mounted) return;
 
-      _showMessage("Failed to generate workout plan.", Colors.red);
+      _showMessage("Failed to generate workout plan.\n$e", Colors.red);
     } finally {
       if (mounted) {
         setState(() {

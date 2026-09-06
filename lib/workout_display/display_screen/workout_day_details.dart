@@ -17,13 +17,27 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
   final ExerciseCatalogService _catalogService =
       ExerciseCatalogService.instance;
 
-  late Future<List<ExerciseModel>> _enrichedExercisesFuture;
+  Future<List<ExerciseModel>>? _enrichedExercisesFuture;
+  Future<List<_PreparationExercise>>? _warmUpFuture;
+  Future<List<_PreparationExercise>>? _stretchingFuture;
+  Future<List<_PreparationExercise>>? _coolDownFuture;
 
   @override
   void initState() {
     super.initState();
-    _enrichedExercisesFuture = _loadEnrichedExercises();
+    _loadAllData();
   }
+
+  void _loadAllData() {
+    _enrichedExercisesFuture = _loadEnrichedExercises();
+    _warmUpFuture = _loadWarmUp();
+    _stretchingFuture = _loadStretching();
+    _coolDownFuture = _loadCoolDown();
+  }
+
+  // ============================================================
+  // MAIN WORKOUT
+  // ============================================================
 
   Future<List<ExerciseModel>> _loadEnrichedExercises() async {
     final originalExercises = widget.workoutDay.workout;
@@ -61,13 +75,175 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
     }
   }
 
+  // ============================================================
+  // WARM UP
+  // ============================================================
+
+  Future<List<_PreparationExercise>> _loadWarmUp() async {
+    return Future.wait(
+      widget.workoutDay.warmUp.map(
+        (item) => _enrichPreparationExercise(
+          exerciseId: item.exerciseId,
+          exerciseName: item.exerciseName,
+          bodyPart: item.bodyPart,
+          duration: item.duration,
+          instructions: item.instructions,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // STRETCHING
+  // ============================================================
+
+  Future<List<_PreparationExercise>> _loadStretching() async {
+    return Future.wait(
+      widget.workoutDay.stretching.map(
+        (item) => _enrichPreparationExercise(
+          exerciseId: item.exerciseId,
+          exerciseName: item.exerciseName,
+          bodyPart: item.bodyPart,
+          duration: item.duration,
+          instructions: item.instructions,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // COOL DOWN
+  // ============================================================
+
+  Future<List<_PreparationExercise>> _loadCoolDown() async {
+    return Future.wait(
+      widget.workoutDay.coolDown.map(
+        (item) => _enrichPreparationExercise(
+          exerciseId: item.exerciseId,
+          exerciseName: item.exerciseName,
+          bodyPart: '',
+          duration: item.duration,
+          instructions: item.instructions,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PREPARATION EXERCISE ENRICHMENT
+  // ============================================================
+
+  Future<_PreparationExercise> _enrichPreparationExercise({
+    required String exerciseId,
+    required String exerciseName,
+    required String bodyPart,
+    required String duration,
+    required List<String> instructions,
+  }) async {
+    String? gifUrl;
+    String finalBodyPart = bodyPart;
+    List<String> finalInstructions = instructions;
+
+    try {
+      // ============================================================
+      // 1. FIRST TRY EXERCISE ID
+      // ============================================================
+      //
+      // Gemini already gives us the ExerciseDB ID.
+      // This is the most reliable and fastest way to find the GIF.
+      //
+      if (exerciseId.trim().isNotEmpty) {
+        final catalog = await _catalogService
+            .findByExerciseDbId(exerciseId.trim())
+            .timeout(const Duration(seconds: 8), onTimeout: () => null);
+
+        if (catalog != null) {
+          gifUrl = catalog.gifUrl;
+
+          if (finalBodyPart.trim().isEmpty && catalog.bodyParts.isNotEmpty) {
+            finalBodyPart = catalog.bodyParts.join(', ');
+          }
+
+          if (catalog.instructions.isNotEmpty) {
+            finalInstructions = catalog.instructions;
+          }
+
+          return _PreparationExercise(
+            exerciseId: exerciseId,
+            exerciseName: exerciseName,
+            bodyPart: finalBodyPart,
+            duration: duration,
+            instructions: finalInstructions,
+            gifUrl: gifUrl,
+          );
+        }
+      }
+
+      // ============================================================
+      // 2. FALLBACK TO EXERCISE NAME
+      // ============================================================
+      //
+      // Only use name matching if the ExerciseDB ID was not found.
+      //
+      if (exerciseName.trim().isNotEmpty) {
+        final catalog = await _catalogService
+            .findBestMatch(exerciseName.trim())
+            .timeout(const Duration(seconds: 8), onTimeout: () => null);
+
+        if (catalog != null) {
+          gifUrl = catalog.gifUrl;
+
+          if (finalBodyPart.trim().isEmpty && catalog.bodyParts.isNotEmpty) {
+            finalBodyPart = catalog.bodyParts.join(', ');
+          }
+
+          if (catalog.instructions.isNotEmpty) {
+            finalInstructions = catalog.instructions;
+          }
+
+          // Use the catalog ID if Gemini's ID was empty.
+          if (exerciseId.trim().isEmpty) {
+            exerciseId = catalog.exerciseDbId;
+          }
+        }
+      }
+    } catch (_) {
+      // Keep Gemini's original information.
+    }
+
+    // ============================================================
+    // 3. ALWAYS RETURN THE EXERCISE
+    // ============================================================
+
+    return _PreparationExercise(
+      exerciseId: exerciseId,
+      exerciseName: exerciseName,
+      bodyPart: finalBodyPart,
+      duration: duration,
+      instructions: finalInstructions,
+      gifUrl: gifUrl,
+    );
+  }
+  // ============================================================
+  // REFRESH
+  // ============================================================
+
   Future<void> _refreshCatalogData() async {
     setState(() {
-      _enrichedExercisesFuture = _loadEnrichedExercises();
+      _loadAllData();
     });
 
-    await _enrichedExercisesFuture;
+    await Future.wait([
+      if (_enrichedExercisesFuture != null) _enrichedExercisesFuture!,
+      if (_warmUpFuture != null) _warmUpFuture!,
+      if (_stretchingFuture != null) _stretchingFuture!,
+      if (_coolDownFuture != null) _coolDownFuture!,
+    ]);
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -102,125 +278,143 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
             if (widget.workoutDay.restDay || widget.workoutDay.workout.isEmpty)
               _RestDayCard(day: widget.workoutDay)
             else ...[
+              // ========================================================
+              // WARM UP
+              // ========================================================
               if (widget.workoutDay.warmUp.isNotEmpty)
                 _Section(
                   title: 'Warm Up',
                   icon: Icons.directions_run,
-                  child: Column(
-                    children: widget.workoutDay.warmUp
-                        .map(
-                          (item) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              item.exerciseName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${item.bodyPart} • ${item.duration}',
-                            ),
-                          ),
+                  child: _warmUpFuture == null
+                      ? const Padding(
+                          padding: EdgeInsets.all(25),
+                          child: Center(child: CircularProgressIndicator()),
                         )
-                        .toList(),
-                  ),
+                      : FutureBuilder<List<_PreparationExercise>>(
+                          future: _warmUpFuture!,
+                          builder: (context, snapshot) {
+                            return _buildPreparationSection(
+                              snapshot: snapshot,
+                              emptyMessage: 'No warm-up exercises available.',
+                            );
+                          },
+                        ),
                 ),
 
               const SizedBox(height: 16),
 
+              // ========================================================
+              // MAIN WORKOUT
+              // ========================================================
               _Section(
                 title: 'Main Workout',
                 icon: Icons.fitness_center,
                 initiallyExpanded: true,
-                child: FutureBuilder<List<ExerciseModel>>(
-                  future: _enrichedExercisesFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 30),
-                        child: Column(
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text(
-                              'Loading exercise GIFs and details...',
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      );
-                    }
+                child: _enrichedExercisesFuture == null
+                    ? const Padding(
+                        padding: EdgeInsets.all(25),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : FutureBuilder<List<ExerciseModel>>(
+                        future: _enrichedExercisesFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: Column(
+                                children: [
+                                  CircularProgressIndicator(),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Loading exercise GIFs and details...',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
 
-                    final exercises =
-                        snapshot.data ?? widget.workoutDay.workout;
+                          final exercises =
+                              snapshot.data ?? widget.workoutDay.workout;
 
-                    if (exercises.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text('No exercises available.'),
-                      );
-                    }
+                          if (exercises.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Text(
+                                'No exercises available.',
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          }
 
-                    return Column(
-                      children: [
-                        for (int i = 0; i < exercises.length; i++)
-                          _ExerciseCard(exercise: exercises[i], number: i + 1),
-                      ],
-                    );
-                  },
-                ),
+                          return Column(
+                            children: [
+                              for (int i = 0; i < exercises.length; i++)
+                                _ExerciseCard(
+                                  exercise: exercises[i],
+                                  number: i + 1,
+                                ),
+                            ],
+                          );
+                        },
+                      ),
               ),
 
+              // ========================================================
+              // STRETCHING
+              // ========================================================
               if (widget.workoutDay.stretching.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _Section(
                   title: 'Stretching',
                   icon: Icons.self_improvement,
-                  child: Column(
-                    children: widget.workoutDay.stretching
-                        .map(
-                          (item) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              item.exerciseName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${item.bodyPart} • ${item.duration}',
-                            ),
-                          ),
+                  child: _stretchingFuture == null
+                      ? const Padding(
+                          padding: EdgeInsets.all(25),
+                          child: Center(child: CircularProgressIndicator()),
                         )
-                        .toList(),
-                  ),
+                      : FutureBuilder<List<_PreparationExercise>>(
+                          future: _stretchingFuture!,
+                          builder: (context, snapshot) {
+                            return _buildPreparationSection(
+                              snapshot: snapshot,
+                              emptyMessage:
+                                  'No stretching exercises available.',
+                            );
+                          },
+                        ),
                 ),
               ],
 
+              // ========================================================
+              // COOL DOWN
+              // ========================================================
               if (widget.workoutDay.coolDown.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _Section(
                   title: 'Cool Down',
                   icon: Icons.accessibility_new,
-                  child: Column(
-                    children: widget.workoutDay.coolDown
-                        .map(
-                          (item) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              item.exerciseName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(item.duration),
-                          ),
+                  child: _coolDownFuture == null
+                      ? const Padding(
+                          padding: EdgeInsets.all(25),
+                          child: Center(child: CircularProgressIndicator()),
                         )
-                        .toList(),
-                  ),
+                      : FutureBuilder<List<_PreparationExercise>>(
+                          future: _coolDownFuture!,
+                          builder: (context, snapshot) {
+                            return _buildPreparationSection(
+                              snapshot: snapshot,
+                              emptyMessage: 'No cool-down exercises available.',
+                            );
+                          },
+                        ),
                 ),
               ],
 
+              // ========================================================
+              // DAILY TIPS
+              // ========================================================
               if (widget.workoutDay.dailyTips.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _Section(
@@ -232,7 +426,10 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
                         .map(
                           (tip) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: Text('• $tip'),
+                            child: Text(
+                              '• $tip',
+                              style: const TextStyle(height: 1.35),
+                            ),
                           ),
                         )
                         .toList(),
@@ -240,6 +437,9 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
                 ),
               ],
 
+              // ========================================================
+              // PRECAUTIONS
+              // ========================================================
               if (widget.workoutDay.precautions.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _Section(
@@ -251,7 +451,10 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
                         .map(
                           (item) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: Text('• $item'),
+                            child: Text(
+                              '• $item',
+                              style: const TextStyle(height: 1.35),
+                            ),
                           ),
                         )
                         .toList(),
@@ -266,6 +469,81 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
       ),
     );
   }
+
+  // ============================================================
+  // PREPARATION SECTION BUILDER
+  // ============================================================
+
+  Widget _buildPreparationSection({
+    required AsyncSnapshot<List<_PreparationExercise>> snapshot,
+    required String emptyMessage,
+  }) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 25),
+        child: Column(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 10),
+            Text(
+              'Loading exercise GIFs and details...',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (snapshot.hasError) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text(
+          'Unable to load exercise details.',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    final exercises = snapshot.data ?? [];
+
+    if (exercises.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(emptyMessage, textAlign: TextAlign.center),
+      );
+    }
+
+    return Column(
+      children: [
+        for (int i = 0; i < exercises.length; i++)
+          _PreparationExerciseCard(exercise: exercises[i], number: i + 1),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// PREPARATION EXERCISE DISPLAY MODEL
+// ============================================================
+
+class _PreparationExercise {
+  final String exerciseId;
+  final String exerciseName;
+  final String bodyPart;
+  final String duration;
+  final List<String> instructions;
+  final String? gifUrl;
+
+  const _PreparationExercise({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.bodyPart,
+    required this.duration,
+    required this.instructions,
+    required this.gifUrl,
+  });
+
+  bool get hasGif => gifUrl != null && gifUrl!.trim().isNotEmpty;
 }
 
 // ============================================================
@@ -330,17 +608,14 @@ class _Header extends StatelessWidget {
 }
 
 // ============================================================
-// EXERCISE CARD
+// MAIN WORKOUT EXERCISE CARD
 // ============================================================
 
 class _ExerciseCard extends StatefulWidget {
   final ExerciseModel exercise;
   final int number;
 
-  const _ExerciseCard({
-    required this.exercise,
-    required this.number,
-  });
+  const _ExerciseCard({required this.exercise, required this.number});
 
   @override
   State<_ExerciseCard> createState() => _ExerciseCardState();
@@ -358,27 +633,20 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          // ==========================================================
-          // COLLAPSED / EXPANDED GIF
-          // ==========================================================
-
+          // ========================================================
+          // LARGE GIF WHEN EXPANDED
+          // ========================================================
           if (_isExpanded && exercise.hasGif)
-            _GifViewer(
-              gifUrl: exercise.gifUrl!,
-            ),
+            _GifViewer(gifUrl: exercise.gifUrl!),
 
-          // ==========================================================
-          // EXERCISE HEADER
-          // ==========================================================
-
+          // ========================================================
+          // HEADER
+          // ========================================================
           InkWell(
             onTap: () {
               setState(() {
@@ -386,17 +654,10 @@ class _ExerciseCardState extends State<_ExerciseCard> {
               });
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
-
-                  // ==================================================
                   // NUMBER
-                  // ==================================================
-
                   Container(
                     width: 30,
                     height: 30,
@@ -417,63 +678,13 @@ class _ExerciseCardState extends State<_ExerciseCard> {
 
                   const SizedBox(width: 9),
 
-                  // ==================================================
-                  // SMALL GIF ONLY WHEN COLLAPSED
-                  // ==================================================
-
+                  // SMALL GIF
                   if (!_isExpanded) ...[
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7F3EF),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: exercise.hasGif
-                          ? Image.network(
-                              exercise.gifUrl!,
-                              fit: BoxFit.contain,
-                              gaplessPlayback: true,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                if (loadingProgress == null) {
-                                  return child;
-                                }
-
-                                return const Center(
-                                  child: SizedBox(
-                                    width: 17,
-                                    height: 17,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder:
-                                  (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.fitness_center,
-                                  size: 23,
-                                  color: Color(0xFF8C7768),
-                                );
-                              },
-                            )
-                          : const Icon(
-                              Icons.fitness_center,
-                              size: 23,
-                              color: Color(0xFF8C7768),
-                            ),
-                    ),
-
+                    _SmallGif(gifUrl: exercise.hasGif ? exercise.gifUrl : null),
                     const SizedBox(width: 10),
                   ],
 
-                  // ==================================================
-                  // EXERCISE NAME
-                  // ==================================================
-
+                  // NAME
                   Expanded(
                     child: Text(
                       exercise.exerciseName,
@@ -489,15 +700,10 @@ class _ExerciseCardState extends State<_ExerciseCard> {
 
                   const SizedBox(width: 5),
 
-                  // ==================================================
-                  // DROPDOWN ARROW
-                  // ==================================================
-
+                  // ARROW
                   AnimatedRotation(
                     turns: _isExpanded ? 0.5 : 0,
-                    duration: const Duration(
-                      milliseconds: 200,
-                    ),
+                    duration: const Duration(milliseconds: 200),
                     child: const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       size: 27,
@@ -509,220 +715,90 @@ class _ExerciseCardState extends State<_ExerciseCard> {
             ),
           ),
 
-          // ==========================================================
+          // ========================================================
           // EXPANDED DETAILS
-          // ==========================================================
-
+          // ========================================================
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
-
             crossFadeState: _isExpanded
                 ? CrossFadeState.showSecond
                 : CrossFadeState.showFirst,
-
             firstChild: const SizedBox.shrink(),
-
             secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                15,
-                0,
-                15,
-                18,
-              ),
+              padding: const EdgeInsets.fromLTRB(15, 0, 15, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  const Divider(
-                    height: 1,
-                    color: Color(0xFFEDE4DD),
-                  ),
+                  const Divider(height: 1, color: Color(0xFFEDE4DD)),
 
                   const SizedBox(height: 14),
-
-                  // ==================================================
-                  // WORKOUT DETAILS
-                  // ==================================================
 
                   Wrap(
                     spacing: 7,
                     runSpacing: 7,
                     children: [
-
                       if (exercise.sets.isNotEmpty)
-                        _Chip(
-                          '${exercise.sets} sets',
-                        ),
+                        _Chip('${exercise.sets} sets'),
 
                       if (exercise.reps.isNotEmpty)
-                        _Chip(
-                          '${exercise.reps} reps',
-                        ),
+                        _Chip('${exercise.reps} reps'),
 
                       if (exercise.duration.isNotEmpty)
-                        _Chip(
-                          exercise.duration,
-                        ),
+                        _Chip(exercise.duration),
 
                       if (exercise.rest.isNotEmpty)
-                        _Chip(
-                          'Rest ${exercise.rest}',
-                        ),
+                        _Chip('Rest ${exercise.rest}'),
 
                       if (exercise.tempo.isNotEmpty)
-                        _Chip(
-                          'Tempo ${exercise.tempo}',
-                        ),
+                        _Chip('Tempo ${exercise.tempo}'),
                     ],
                   ),
 
-                  // ==================================================
-                  // TARGET MUSCLES
-                  // ==================================================
-
                   if (exercise.targetMuscles.isNotEmpty) ...[
                     const SizedBox(height: 16),
-
-                    const _Label(
-                      title: 'Target Muscles',
-                    ),
-
+                    const _Label(title: 'Target Muscles'),
                     const SizedBox(height: 6),
-
-                    Text(
-                      exercise.targetMuscles.join(', '),
-                    ),
+                    Text(exercise.targetMuscles.join(', ')),
                   ],
-
-                  // ==================================================
-                  // SECONDARY MUSCLES
-                  // ==================================================
 
                   if (secondaryMuscles.isNotEmpty) ...[
                     const SizedBox(height: 13),
-
-                    const _Label(
-                      title: 'Secondary Muscles',
-                    ),
-
+                    const _Label(title: 'Secondary Muscles'),
                     const SizedBox(height: 6),
-
-                    Text(
-                      secondaryMuscles.join(', '),
-                    ),
+                    Text(secondaryMuscles.join(', ')),
                   ],
-
-                  // ==================================================
-                  // BODY PART
-                  // ==================================================
 
                   if (exercise.bodyParts.isNotEmpty) ...[
                     const SizedBox(height: 13),
-
-                    const _Label(
-                      title: 'Body Part',
-                    ),
-
+                    const _Label(title: 'Body Part'),
                     const SizedBox(height: 6),
-
-                    Text(
-                      exercise.bodyParts.join(', '),
-                    ),
+                    Text(exercise.bodyParts.join(', ')),
                   ],
 
-                  // ==================================================
-                  // EQUIPMENT
-                  // ==================================================
-
-                  if (exercise.equipmentRequired
-                      .trim()
-                      .isNotEmpty) ...[
+                  if (exercise.equipmentRequired.trim().isNotEmpty) ...[
                     const SizedBox(height: 13),
-
-                    const _Label(
-                      title: 'Equipment',
-                    ),
-
+                    const _Label(title: 'Equipment'),
                     const SizedBox(height: 6),
-
-                    Text(
-                      exercise.equipmentRequired,
-                    ),
+                    Text(exercise.equipmentRequired),
                   ],
-
-                  // ==================================================
-                  // HOW TO PERFORM
-                  // ==================================================
 
                   if (instructions.isNotEmpty) ...[
                     const SizedBox(height: 17),
-
-                    const _Label(
-                      title: 'How To Perform',
-                    ),
-
+                    const _Label(title: 'How To Perform'),
                     const SizedBox(height: 8),
 
                     ...List.generate(
                       instructions.length,
-                      (index) => Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 7),
-                        child: Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-
-                            Container(
-                              width: 22,
-                              height: 22,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color:
-                                    const Color(0xFFEDE4DD),
-                                borderRadius:
-                                    BorderRadius.circular(7),
-                              ),
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      Color(0xFF6D574A),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(width: 8),
-
-                            Expanded(
-                              child: Text(
-                                instructions[index],
-                                style: const TextStyle(
-                                  height: 1.4,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      (index) => _InstructionRow(
+                        number: index + 1,
+                        text: instructions[index],
                       ),
                     ),
                   ],
 
-                  // ==================================================
-                  // ALTERNATIVE EXERCISES
-                  // ==================================================
-
-                  if (exercise
-                      .substituteExercises
-                      .isNotEmpty) ...[
+                  if (exercise.substituteExercises.isNotEmpty) ...[
                     const SizedBox(height: 17),
-
-                    const _Label(
-                      title: 'Alternative Exercises',
-                    ),
-
+                    const _Label(title: 'Alternative Exercises'),
                     const SizedBox(height: 8),
 
                     ...exercise.substituteExercises
@@ -732,44 +808,33 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         .entries
                         .map(
                           (entry) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-
                                 Container(
                                   width: 28,
                                   height: 28,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color:
-                                        const Color(0xFFEDE4DD),
-                                    borderRadius:
-                                        BorderRadius.circular(9),
+                                    color: const Color(0xFFEDE4DD),
+                                    borderRadius: BorderRadius.circular(9),
                                   ),
                                   child: Text(
                                     '${entry.key + 1}',
                                     style: const TextStyle(
-                                      fontWeight:
-                                          FontWeight.bold,
-                                      color:
-                                          Color(0xFF6D574A),
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF6D574A),
                                     ),
                                   ),
                                 ),
-
                                 const SizedBox(width: 10),
-
                                 Expanded(
                                   child: Text(
                                     entry.value,
-                                    style:
-                                        const TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 14,
-                                      fontWeight:
-                                          FontWeight.w600,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
@@ -779,82 +844,46 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         ),
                   ],
 
-                  // ==================================================
-                  // TRAINER TIPS
-                  // ==================================================
-
                   if (exercise.tips.isNotEmpty) ...[
                     const SizedBox(height: 17),
-
-                    const _Label(
-                      title: 'Trainer Tips',
-                    ),
-
+                    const _Label(title: 'Trainer Tips'),
                     const SizedBox(height: 8),
-
                     ...exercise.tips.map(
                       (tip) => Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
                           '• $tip',
-                          style: const TextStyle(
-                            height: 1.35,
-                          ),
+                          style: const TextStyle(height: 1.35),
                         ),
                       ),
                     ),
                   ],
-
-                  // ==================================================
-                  // PRECAUTIONS
-                  // ==================================================
 
                   if (exercise.precautions.isNotEmpty) ...[
                     const SizedBox(height: 17),
-
-                    const _Label(
-                      title: 'Precautions',
-                    ),
-
+                    const _Label(title: 'Precautions'),
                     const SizedBox(height: 8),
-
                     ...exercise.precautions.map(
                       (item) => Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
                           '• $item',
-                          style: const TextStyle(
-                            height: 1.35,
-                          ),
+                          style: const TextStyle(height: 1.35),
                         ),
                       ),
                     ),
                   ],
 
-                  // ==================================================
-                  // COMMON MISTAKES
-                  // ==================================================
-
                   if (exercise.commonMistakes.isNotEmpty) ...[
                     const SizedBox(height: 17),
-
-                    const _Label(
-                      title: 'Common Mistakes',
-                    ),
-
+                    const _Label(title: 'Common Mistakes'),
                     const SizedBox(height: 8),
-
                     ...exercise.commonMistakes.map(
                       (item) => Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
                           '• $item',
-                          style: const TextStyle(
-                            height: 1.35,
-                          ),
+                          style: const TextStyle(height: 1.35),
                         ),
                       ),
                     ),
@@ -868,6 +897,329 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     );
   }
 }
+
+// ============================================================
+// PREPARATION EXERCISE CARD
+//
+// Used by:
+// - Warm Up
+// - Stretching
+// - Cool Down
+//
+// Same visual behavior as main workout:
+// - Small GIF when collapsed
+// - Large GIF when expanded
+// - Exercise name
+// - Body part
+// - Duration
+// - Instructions
+// ============================================================
+
+class _PreparationExerciseCard extends StatefulWidget {
+  final _PreparationExercise exercise;
+  final int number;
+
+  const _PreparationExerciseCard({
+    required this.exercise,
+    required this.number,
+  });
+
+  @override
+  State<_PreparationExerciseCard> createState() =>
+      _PreparationExerciseCardState();
+}
+
+class _PreparationExerciseCardState extends State<_PreparationExerciseCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final exercise = widget.exercise;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ========================================================
+          // LARGE GIF
+          // ========================================================
+          if (_isExpanded && exercise.hasGif)
+            _GifViewer(gifUrl: exercise.gifUrl!),
+
+          // ========================================================
+          // HEADER
+          // ========================================================
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  // NUMBER
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE4DD),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      '${widget.number}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6D574A),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 9),
+
+                  // SMALL GIF
+                  if (!_isExpanded) ...[
+                    _SmallGif(gifUrl: exercise.hasGif ? exercise.gifUrl : null),
+                    const SizedBox(width: 10),
+                  ],
+
+                  // NAME
+                  Expanded(
+                    child: Text(
+                      exercise.exerciseName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF3E3028),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  // ARROW
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 27,
+                      color: Color(0xFF6D574A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ========================================================
+          // DETAILS
+          // ========================================================
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: _isExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(15, 0, 15, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 1, color: Color(0xFFEDE4DD)),
+
+                  const SizedBox(height: 14),
+
+                  // ====================================================
+                  // DURATION / BODY PART
+                  // ====================================================
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      if (exercise.duration.trim().isNotEmpty)
+                        _Chip(exercise.duration),
+
+                      if (exercise.bodyPart.trim().isNotEmpty)
+                        _Chip(exercise.bodyPart),
+                    ],
+                  ),
+
+                  // ====================================================
+                  // EXERCISE ID
+                  // ====================================================
+                  if (exercise.exerciseId.trim().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    const _Label(title: 'Exercise ID'),
+                    const SizedBox(height: 5),
+                    Text(
+                      exercise.exerciseId,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6D574A),
+                      ),
+                    ),
+                  ],
+
+                  // ====================================================
+                  // BODY PART
+                  // ====================================================
+                  if (exercise.bodyPart.trim().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    const _Label(title: 'Body Part'),
+                    const SizedBox(height: 6),
+                    Text(
+                      exercise.bodyPart,
+                      style: const TextStyle(height: 1.4),
+                    ),
+                  ],
+
+                  // ====================================================
+                  // DURATION
+                  // ====================================================
+                  if (exercise.duration.trim().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    const _Label(title: 'Duration'),
+                    const SizedBox(height: 6),
+                    Text(
+                      exercise.duration,
+                      style: const TextStyle(height: 1.4),
+                    ),
+                  ],
+
+                  // ====================================================
+                  // INSTRUCTIONS
+                  // ====================================================
+                  if (exercise.instructions.isNotEmpty) ...[
+                    const SizedBox(height: 17),
+                    const _Label(title: 'How To Perform'),
+                    const SizedBox(height: 8),
+
+                    ...List.generate(
+                      exercise.instructions.length,
+                      (index) => _InstructionRow(
+                        number: index + 1,
+                        text: exercise.instructions[index],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SMALL GIF
+// ============================================================
+
+class _SmallGif extends StatelessWidget {
+  final String? gifUrl;
+
+  const _SmallGif({required this.gifUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F3EF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: gifUrl != null && gifUrl!.trim().isNotEmpty
+          ? Image.network(
+              gifUrl!,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) {
+                  return child;
+                }
+
+                return const Center(
+                  child: SizedBox(
+                    width: 17,
+                    height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(
+                  Icons.fitness_center,
+                  size: 23,
+                  color: Color(0xFF8C7768),
+                );
+              },
+            )
+          : const Icon(
+              Icons.fitness_center,
+              size: 23,
+              color: Color(0xFF8C7768),
+            ),
+    );
+  }
+}
+
+// ============================================================
+// INSTRUCTION ROW
+// ============================================================
+
+class _InstructionRow extends StatelessWidget {
+  final int number;
+  final String text;
+
+  const _InstructionRow({required this.number, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEDE4DD),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              '$number',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6D574A),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Expanded(child: Text(text, style: const TextStyle(height: 1.4))),
+        ],
+      ),
+    );
+  }
+}
+
 // ============================================================
 // GIF VIEWER
 // ============================================================
@@ -899,8 +1251,6 @@ class _GifViewer extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Icon(Icons.broken_image_outlined, size: 45, color: Colors.grey),
-                // SizedBox(height: 8),
                 Text(
                   'Animated Video Coming Soon ....',
                   style: TextStyle(
@@ -934,12 +1284,16 @@ class _RestDayCard extends StatelessWidget {
         child: Column(
           children: [
             const Icon(Icons.self_improvement, size: 60),
+
             const SizedBox(height: 14),
+
             Text(
               day.activity.isEmpty ? 'Recovery Day' : day.activity,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 14),
+
             ...day.recoveryTips.map(
               (tip) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -962,18 +1316,21 @@ class _Section extends StatefulWidget {
   final IconData icon;
   final Widget child;
   final bool initiallyExpanded;
+
   const _Section({
     required this.title,
     required this.icon,
     required this.child,
     this.initiallyExpanded = false,
   });
+
   @override
   State<_Section> createState() => _SectionState();
 }
 
 class _SectionState extends State<_Section> {
   late bool _isExpanded;
+
   @override
   void initState() {
     super.initState();
@@ -1038,8 +1395,9 @@ class _SectionState extends State<_Section> {
     );
   }
 }
+
 // ============================================================
-// SMALL WIDGETS
+// CHIP
 // ============================================================
 
 class _Chip extends StatelessWidget {
@@ -1062,6 +1420,10 @@ class _Chip extends StatelessWidget {
     );
   }
 }
+
+// ============================================================
+// LABEL
+// ============================================================
 
 class _Label extends StatelessWidget {
   final String title;

@@ -11,10 +11,6 @@ class SupabaseService {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  //==========================================================
-  // USER PROFILE
-  //==========================================================
-
   Future<void> saveUserProfile(UserProfileModel profile) async {
     // -------------------------------
     // 1. Save Profile (without goal fields)
@@ -458,10 +454,6 @@ class SupabaseService {
     }
   }
 
-  //==========================================================
-  // MEAL PLAN
-  //==========================================================
-
   Future<void> saveMealPlan(String uid, Map<String, dynamic> mealPlan) async {
     final generatedAt = DateTime.now();
     final expiresAt = generatedAt.add(mealPlanExpiry);
@@ -518,10 +510,6 @@ class SupabaseService {
 
     return response != null;
   }
-
-  //==========================================================
-  // WORKOUT PLAN
-  //==========================================================
 
   Future<void> saveWorkoutPlan(
     String uid,
@@ -604,10 +592,6 @@ class SupabaseService {
     return response != null;
   }
 
-  //==========================================================
-  // PLAN HELPERS
-  //==========================================================
-
   bool isPlanExpired(Map<String, dynamic> plan) {
     final expiresAt = plan['expiresAt'] ?? plan['expires_at'];
 
@@ -659,10 +643,6 @@ class SupabaseService {
 
     return "$minutes Min";
   }
-
-  //==========================================================
-  // PROGRESS
-  //==========================================================
 
   double getPlanProgress(Map<String, dynamic> plan) {
     final createdAt =
@@ -723,10 +703,6 @@ class SupabaseService {
 
     return "$minutes Min";
   }
-
-  //==========================================================
-  // AI GENERATION
-  //==========================================================
 
   Future<void> generateAndSaveMealPlan(String uid) async {
     final profile = await getUserProfile(uid);
