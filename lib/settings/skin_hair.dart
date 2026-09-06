@@ -118,97 +118,28 @@ class _SkinHairScreenState extends State<SkinHairScreen> {
   Future<void> _saveSkinHair() async {
     if (profile == null) return;
 
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
-      final updated = UserProfileModel(
-        uid: profile!.uid,
-
-        // PROFILE
-        fullName: profile!.fullName,
-        age: profile!.age,
-        gender: profile!.gender,
-        height: profile!.height,
-        weight: profile!.weight,
-        phone: profile!.phone,
-
-        // GOALS
-        goal: profile!.goal,
-        targetWeight: profile!.targetWeight,
-        durationMonths: profile!.durationMonths,
-        muscleGainTarget: profile!.muscleGainTarget,
-        strengthGoal: profile!.strengthGoal,
-        primaryLift: profile!.primaryLift,
-        repRange: profile!.repRange,
-        enduranceGoal: profile!.enduranceGoal,
-        cardioPreference: profile!.cardioPreference,
-        fitnessGoals: profile!.fitnessGoals,
-        workoutPlace: profile!.workoutPlace,
-        sportName: profile!.sportName,
-        performanceGoals: profile!.performanceGoals,
-        competitionLevel: profile!.competitionLevel,
-        workoutDays: profile!.workoutDays,
-        activityLevel: profile!.activityLevel,
-
-        // DIET
-        dietaryPreferences: profile!.dietaryPreferences,
-        allergies: profile!.allergies,
-        comments: profile!.comments,
-        mealsPerDay: profile!.mealsPerDay,
-
-        // ROUTINE
-        sleepHours: profile!.sleepHours,
-        waterIntake: profile!.waterIntake,
-        job: profile!.job,
-        workoutTime: profile!.workoutTime,
-        breakTime: profile!.breakTime,
-        officeTime: profile!.officeTime,
-        exercise: profile!.exercise,
-        wakeUp: profile!.wakeUp,
-        budget: profile!.budget,
-
-        // WORKOUT
-        workoutPrefer: profile!.workoutPrefer,
-        equipmentPrefer: profile!.equipmentPrefer,
-        split: profile!.split,
-
-        // SKIN - UPDATED
-        skinTone: skinTone,
-        skinConcerns: List<String>.from(skinConcerns),
-
-        // HAIR - UPDATED
-        hairType: hairType,
-        hairConcerns: List<String>.from(hairConcerns),
-        scalpType: scalpType,
-
-        // BODY
-        bodyType: profile!.bodyType,
-        bodyGoal: profile!.bodyGoal,
-        fitnessLevel: profile!.fitnessLevel,
-      );
-
-      await _service.updateUserProfile(updated);
-
-      profile = updated;
+      await _service.updateProfileFields(profile!.uid, {
+        'skin_tone': skinTone,
+        'skin_concerns': skinConcerns.join(', '),
+        'hair_type': hairType,
+        'hair_concerns': hairConcerns.join(', '),
+        'scalp_type': scalpType,
+      });
 
       if (!mounted) return;
-
       _showMessage(
-        "Skin & hair information updated successfully.",
+        'Skin & hair information updated successfully.',
         Colors.green,
       );
-
       Navigator.pop(context, true);
     } catch (e) {
-      _showMessage("Failed to update skin & hair information: $e", Colors.red);
-    }
-
-    if (mounted) {
-      setState(() {
-        isSaving = false;
-      });
+      if (!mounted) return;
+      _showMessage('Failed to update skin & hair information: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => isSaving = false);
     }
   }
 

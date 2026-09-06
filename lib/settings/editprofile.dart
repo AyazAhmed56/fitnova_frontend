@@ -87,126 +87,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // ============================================================
 
   Future<void> _updateProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
+    if (profile == null) return;
 
-    if (profile == null) {
-      return;
-    }
-
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
-      /*
-       * Preserve ALL existing profile information.
-       *
-       * Only these values are changed here:
-       * fullName
-       * age
-       * gender
-       * height
-       * weight
-       * phone
-       */
-
-      final updatedProfile = UserProfileModel(
-        uid: profile!.uid,
-
-        // BASIC PROFILE
-        fullName: fullNameController.text.trim(),
-        age: int.parse(ageController.text.trim()),
-        gender: gender,
-        height: double.parse(heightController.text.trim()),
-        weight: double.parse(weightController.text.trim()),
-        phone: int.tryParse(phoneController.text.trim()) ?? 0,
-
-        // GOALS
-        goal: profile!.goal,
-        targetWeight: profile!.targetWeight,
-        durationMonths: profile!.durationMonths,
-        muscleGainTarget: profile!.muscleGainTarget,
-        sportName: profile!.sportName,
-        strengthGoal: profile!.strengthGoal,
-        primaryLift: profile!.primaryLift,
-        repRange: profile!.repRange,
-        enduranceGoal: profile!.enduranceGoal,
-        cardioPreference: profile!.cardioPreference,
-        fitnessGoals: List<String>.from(profile!.fitnessGoals),
-        workoutPlace: profile!.workoutPlace,
-        performanceGoals: List<String>.from(profile!.performanceGoals),
-        competitionLevel: profile!.competitionLevel,
-        workoutDays: profile!.workoutDays,
-
-        // ACTIVITY
-        activityLevel: profile!.activityLevel,
-
-        // DIET
-        dietaryPreferences: List<String>.from(profile!.dietaryPreferences),
-        allergies: profile!.allergies,
-        comments: profile!.comments,
-        mealsPerDay: profile!.mealsPerDay,
-        budget: profile!.budget,
-
-        // DAILY ROUTINE
-        sleepHours: profile!.sleepHours,
-        waterIntake: profile!.waterIntake,
-        officeTime: profile!.officeTime,
-        breakTime: profile!.breakTime,
-        job: profile!.job,
-        workoutTime: profile!.workoutTime,
-        exercise: profile!.exercise,
-        wakeUp: profile!.wakeUp,
-
-        // WORKOUT
-        workoutPrefer: profile!.workoutPrefer,
-        equipmentPrefer: profile!.equipmentPrefer,
-        split: profile!.split,
-
-        // SKIN
-        skinTone: profile!.skinTone,
-        skinConcerns: List<String>.from(profile!.skinConcerns),
-
-        // HAIR
-        hairType: profile!.hairType,
-        hairConcerns: List<String>.from(profile!.hairConcerns),
-        scalpType: profile!.scalpType,
-
-        // BODY
-        bodyType: profile!.bodyType,
-        bodyGoal: profile!.bodyGoal,
-        fitnessLevel: profile!.fitnessLevel,
-      );
-
-      await SupabaseService().updateUserProfile(updatedProfile);
+      await SupabaseService().updateProfileFields(profile!.uid, {
+        'full_name': fullNameController.text.trim(),
+        'age': int.parse(ageController.text.trim()),
+        'gender': gender,
+        'height': double.parse(heightController.text.trim()),
+        'weight': double.parse(weightController.text.trim()),
+        'phone': int.tryParse(phoneController.text.trim()) ?? 0,
+      });
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Profile updated successfully"),
+          content: Text('Profile updated successfully'),
           backgroundColor: Colors.green,
         ),
       );
-
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Failed to update profile: $e"),
+          content: Text('Failed to update profile: $e'),
           backgroundColor: Colors.red,
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          isSaving = false;
-        });
-      }
+      if (mounted) setState(() => isSaving = false);
     }
   }
 

@@ -94,98 +94,30 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
   }
 
   Future<void> _saveRoutine() async {
-    if (profile == null) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
 
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
-      final updatedProfile = UserProfileModel(
-        uid: profile!.uid,
-
-        // PROFILE
-        fullName: profile!.fullName,
-        age: profile!.age,
-        gender: profile!.gender,
-        height: profile!.height,
-        weight: profile!.weight,
-        phone: profile!.phone,
-
-        // GOALS
-        goal: profile!.goal,
-        targetWeight: profile!.targetWeight,
-        durationMonths: profile!.durationMonths,
-        muscleGainTarget: profile!.muscleGainTarget,
-        strengthGoal: profile!.strengthGoal,
-        primaryLift: profile!.primaryLift,
-        repRange: profile!.repRange,
-        enduranceGoal: profile!.enduranceGoal,
-        cardioPreference: profile!.cardioPreference,
-        fitnessGoals: profile!.fitnessGoals,
-
-        // WORKOUT
-        workoutPlace: profile!.workoutPlace,
-        sportName: profile!.sportName,
-        performanceGoals: profile!.performanceGoals,
-        competitionLevel: profile!.competitionLevel,
-        workoutDays: profile!.workoutDays,
-        activityLevel: profile!.activityLevel,
-
-        // DIET
-        dietaryPreferences: profile!.dietaryPreferences,
-        allergies: profile!.allergies,
-        comments: profile!.comments,
-        mealsPerDay: profile!.mealsPerDay,
-
-        // DAILY ROUTINE - UPDATED
-        sleepHours: sleepController.text.trim(),
-        waterIntake: waterController.text.trim(),
-        job: profile!.job,
-        workoutTime: workoutTimeController.text.trim(),
-        breakTime: breakController.text.trim(),
-        officeTime: officeController.text.trim(),
-        exercise: exerciseController.text.trim(),
-        wakeUp: wakeUpController.text.trim(),
-        budget: profile!.budget,
-
-        // WORKOUT PREFERENCES
-        workoutPrefer: profile!.workoutPrefer,
-        equipmentPrefer: profile!.equipmentPrefer,
-        split: profile!.split,
-
-        // SKIN
-        skinTone: profile!.skinTone,
-        skinConcerns: profile!.skinConcerns,
-
-        // HAIR
-        hairType: profile!.hairType,
-        hairConcerns: profile!.hairConcerns,
-        scalpType: profile!.scalpType,
-
-        // BODY
-        bodyType: profile!.bodyType,
-        bodyGoal: profile!.bodyGoal,
-        fitnessLevel: profile!.fitnessLevel,
-      );
-
-      await _service.updateUserProfile(updatedProfile);
-
-      profile = updatedProfile;
+      await _service.updateProfileFields(user.id, {
+        'sleep_hours': sleepController.text.trim(),
+        'water_intake': waterController.text.trim(),
+        'workout_time': workoutTimeController.text.trim(),
+        'break_time': breakController.text.trim(),
+        'office_time': officeController.text.trim(),
+        'exercise': exerciseController.text.trim(),
+        'wake_up': wakeUpController.text.trim(),
+      });
 
       if (!mounted) return;
-
-      _showMessage("Daily routine updated successfully.", Colors.green);
-
+      _showMessage('Daily routine updated successfully.', Colors.green);
       Navigator.pop(context, true);
     } catch (e) {
-      _showMessage("Failed to update routine: $e", Colors.red);
-    }
-
-    if (mounted) {
-      setState(() {
-        isSaving = false;
-      });
+      if (!mounted) return;
+      _showMessage('Failed to update routine: $e', Colors.red);
+    } finally {
+      if (mounted) setState(() => isSaving = false);
     }
   }
 

@@ -85,135 +85,38 @@ class _DietPreferencesScreenState extends State<DietPreferencesScreen> {
   }
 
   Future<void> updateDietPreferences() async {
-    if (profile == null) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
 
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
-      final updatedProfile = UserProfileModel(
-        uid: profile!.uid,
-        fullName: profile!.fullName,
-        age: profile!.age,
-        gender: profile!.gender,
-        height: profile!.height,
-        weight: profile!.weight,
-        phone: profile!.phone,
-
-        // GOALS
-        goal: profile!.goal,
-        targetWeight: profile!.targetWeight,
-        durationMonths: profile!.durationMonths,
-
-        muscleGainTarget: profile!.muscleGainTarget,
-
-        strengthGoal: profile!.strengthGoal,
-
-        primaryLift: profile!.primaryLift,
-
-        repRange: profile!.repRange,
-
-        enduranceGoal: profile!.enduranceGoal,
-
-        cardioPreference: profile!.cardioPreference,
-
-        sportName: profile!.sportName,
-
-        fitnessGoals: profile!.fitnessGoals,
-
-        workoutPlace: profile!.workoutPlace,
-
-        performanceGoals: profile!.performanceGoals,
-
-        competitionLevel: profile!.competitionLevel,
-
-        workoutDays: profile!.workoutDays,
-
-        activityLevel: profile!.activityLevel,
-
-        // DIET
-        dietaryPreferences: selectedDiet,
-
-        allergies: allergiesController.text.trim(),
-
-        comments: commentsController.text.trim(),
-
-        mealsPerDay: mealsController.text.trim(),
-
-        budget: budgetController.text.trim(),
-
-        // DAILY ROUTINE
-        sleepHours: profile!.sleepHours,
-
-        waterIntake: profile!.waterIntake,
-
-        job: profile!.job,
-
-        workoutTime: profile!.workoutTime,
-
-        breakTime: profile!.breakTime,
-
-        officeTime: profile!.officeTime,
-
-        exercise: profile!.exercise,
-
-        wakeUp: profile!.wakeUp,
-
-        // WORKOUT
-        workoutPrefer: profile!.workoutPrefer,
-
-        equipmentPrefer: profile!.equipmentPrefer,
-
-        split: profile!.split,
-
-        // SKIN
-        skinTone: profile!.skinTone,
-
-        skinConcerns: profile!.skinConcerns,
-
-        // HAIR
-        hairType: profile!.hairType,
-
-        hairConcerns: profile!.hairConcerns,
-
-        scalpType: profile!.scalpType,
-
-        // BODY
-        bodyType: profile!.bodyType,
-
-        bodyGoal: profile!.bodyGoal,
-
-        fitnessLevel: profile!.fitnessLevel,
-      );
-
-      await _supabaseService.updateUserProfile(updatedProfile);
+      await _supabaseService.updateProfileFields(user.id, {
+        'dietary_preferences': selectedDiet.join(', '),
+        'allergies': allergiesController.text.trim(),
+        'comments': commentsController.text.trim(),
+        'meals_per_day': mealsController.text.trim(),
+        'budget': budgetController.text.trim(),
+      });
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Diet preferences updated successfully."),
+          content: Text('Diet preferences updated successfully.'),
           backgroundColor: Color(0xFF3A6F4B),
         ),
       );
-
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Failed to update diet preferences.\n$e"),
+          content: Text('Failed to update diet preferences.\n$e'),
           backgroundColor: Colors.red,
         ),
       );
-    }
-
-    if (mounted) {
-      setState(() {
-        isSaving = false;
-      });
+    } finally {
+      if (mounted) setState(() => isSaving = false);
     }
   }
 

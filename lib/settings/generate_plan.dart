@@ -17,87 +17,103 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
   bool generatingWorkout = false;
   bool generatingBoth = false;
 
-  Color primary = const Color(0xFF3A6F4B);
+  static const Color primary = Color(0xFF3A6F4B);
+  static const Color background = Color(0xFFF5F8F5);
+
+  bool get anyGenerating =>
+      generatingMeal || generatingWorkout || generatingBoth;
+
+  // ============================================================
+  // GENERATE MEAL
+  // ============================================================
 
   Future<void> _generateMealPlan(String userId) async {
     final confirm = await _confirm(
-      "Generate Meal Plan",
-      "Your current meal plan may be replaced with a new personalized meal plan. Continue?",
+      'Generate Meal Plan',
+      'Your current meal plan may be replaced with a new personalized meal plan. Continue?',
     );
 
-    if (!confirm) return;
+    if (!confirm || !mounted) return;
 
     setState(() {
       generatingMeal = true;
     });
 
     try {
-      // Use your existing meal-plan generation method here.
-      //
-      // If your SupabaseService currently has a dedicated
-      // generateMealPlan() method, call it here.
-
-      await _service.generateAndSavePlans(userId);
+      await _service.generateAndSaveMealPlan(userId);
 
       if (!mounted) return;
 
-      _message("Meal plan generated successfully.", Colors.green);
-    } catch (e) {
+      _message('Meal plan generated successfully.', Colors.green);
+    } catch (e, stackTrace) {
+      debugPrint('========== MEAL GENERATION ERROR ==========');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('===========================================');
+
       if (!mounted) return;
 
-      _message("Failed to generate meal plan.", Colors.red);
-    }
-
-    if (mounted) {
-      setState(() {
-        generatingMeal = false;
-      });
+      _message('Failed to generate meal plan.\n$e', Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() {
+          generatingMeal = false;
+        });
+      }
     }
   }
 
+  // ============================================================
+  // GENERATE WORKOUT
+  // ============================================================
+
   Future<void> _generateWorkoutPlan(String userId) async {
     final confirm = await _confirm(
-      "Generate Workout Plan",
-      "Your current workout plan may be replaced with a new personalized workout plan. Continue?",
+      'Generate Workout Plan',
+      'Your current workout plan may be replaced with a new personalized workout plan. Continue?',
     );
 
-    if (!confirm) return;
+    if (!confirm || !mounted) return;
 
     setState(() {
       generatingWorkout = true;
     });
 
     try {
-      // Use your existing workout-only generation method here.
-      //
-      // If your SupabaseService currently has a dedicated
-      // generateWorkoutPlan() method, call it here.
-
-      await _service.generateAndSavePlans(userId);
+      await _service.generateAndSaveWorkoutPlan(userId);
 
       if (!mounted) return;
 
-      _message("Workout plan generated successfully.", Colors.green);
-    } catch (e) {
+      _message('Workout plan generated successfully.', Colors.green);
+    } catch (e, stackTrace) {
+      debugPrint('========== WORKOUT GENERATION ERROR ==========');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('==============================================');
+
       if (!mounted) return;
 
-      _message("Failed to generate workout plan.", Colors.red);
-    }
-
-    if (mounted) {
-      setState(() {
-        generatingWorkout = false;
-      });
+      _message('Failed to generate workout plan.\n$e', Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() {
+          generatingWorkout = false;
+        });
+      }
     }
   }
 
+  // ============================================================
+  // GENERATE BOTH
+  // ============================================================
+
   Future<void> _generateBoth(String userId) async {
     final confirm = await _confirm(
-      "Generate New Plan",
-      "This will generate a new meal plan and workout plan. Continue?",
+      'Generate New Plan',
+      'This will generate a new meal plan and workout plan. Continue?',
     );
 
-    if (!confirm) return;
+    if (!confirm || !mounted) return;
 
     setState(() {
       generatingBoth = true;
@@ -109,45 +125,54 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
       if (!mounted) return;
 
       _message(
-        "New meal and workout plans generated successfully.",
+        'New meal and workout plans generated successfully.',
         Colors.green,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('========== BOTH PLAN GENERATION ERROR ==========');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('=================================================');
+
       if (!mounted) return;
 
-      _message("Failed to generate plans.", Colors.red);
-    }
-
-    if (mounted) {
-      setState(() {
-        generatingBoth = false;
-      });
+      _message('Failed to generate plans.\n$e', Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() {
+          generatingBoth = false;
+        });
+      }
     }
   }
+
+  // ============================================================
+  // CONFIRM DIALOG
+  // ============================================================
 
   Future<bool> _confirm(String title, String message) async {
     final result = await showDialog<bool>(
       context: context,
-
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: Text(title),
-
           content: Text(message),
-
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                Navigator.pop(dialogContext, false);
               },
-              child: const Text("Cancel"),
+              child: const Text('Cancel'),
             ),
-
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.pop(dialogContext, true);
               },
-              child: const Text("Generate"),
+              style: ElevatedButton.styleFrom(backgroundColor: primary),
+              child: const Text(
+                'Generate',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
@@ -157,13 +182,27 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
     return result ?? false;
   }
 
+  // ============================================================
+  // MESSAGE
+  // ============================================================
+
   void _message(String message, Color color) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, maxLines: 6, overflow: TextOverflow.ellipsis),
+        backgroundColor: color,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
+
+  // ============================================================
+  // GENERATE CARD
+  // ============================================================
 
   Widget _generateCard({
     required IconData icon,
@@ -174,38 +213,31 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(.05),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
         ],
       ),
-
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: loading ? null : onTap,
-
+        onTap: anyGenerating ? null : onTap,
         child: Padding(
           padding: const EdgeInsets.all(18),
-
           child: Row(
             children: [
               Container(
                 width: 55,
                 height: 55,
-
                 decoration: BoxDecoration(
                   color: const Color(0xFFEAF4ED),
                   borderRadius: BorderRadius.circular(16),
                 ),
-
                 child: Icon(icon, color: primary, size: 28),
               ),
 
@@ -214,7 +246,6 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-
                   children: [
                     Text(
                       title,
@@ -238,7 +269,7 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
               ),
 
               if (loading)
-                SizedBox(
+                const SizedBox(
                   height: 22,
                   width: 22,
                   child: CircularProgressIndicator(
@@ -259,24 +290,28 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: Text("Please login first.")));
+      return const Scaffold(body: Center(child: Text('Please login first.')));
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8F5),
+      backgroundColor: background,
 
       appBar: AppBar(
         title: const Text(
-          "Generate Plans",
+          'Generate Plans',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF5F8F5),
+        backgroundColor: background,
         elevation: 0,
       ),
 
@@ -296,7 +331,6 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
                   gradient: const LinearGradient(
                     colors: [Color(0xFFEAF4ED), Color(0xFFDCEDE1)],
                   ),
-
                   borderRadius: BorderRadius.circular(22),
                 ),
 
@@ -304,12 +338,12 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
-                    Icon(Icons.auto_awesome, color: primary, size: 32),
+                    const Icon(Icons.auto_awesome, color: primary, size: 32),
 
                     const SizedBox(height: 12),
 
                     const Text(
-                      "Create Your Plan",
+                      'Create Your Plan',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -319,7 +353,7 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
                     const SizedBox(height: 7),
 
                     Text(
-                      "FitNova will use your current profile information to create a personalized plan.",
+                      'FitNova will use your current profile information to create a personalized plan.',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,
@@ -332,7 +366,7 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
               const SizedBox(height: 28),
 
               const Text(
-                "Choose what you want to generate",
+                'Choose what you want to generate',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
 
@@ -340,24 +374,24 @@ class _GeneratePlanScreenState extends State<GeneratePlanScreen> {
 
               _generateCard(
                 icon: Icons.restaurant_menu,
-                title: "Generate Meal Plan",
-                subtitle: "Create a personalized diet and meal plan.",
+                title: 'Generate Meal Plan',
+                subtitle: 'Create a personalized diet and meal plan.',
                 loading: generatingMeal,
                 onTap: () => _generateMealPlan(user.id),
               ),
 
               _generateCard(
                 icon: Icons.fitness_center,
-                title: "Generate Workout Plan",
-                subtitle: "Create a personalized training plan.",
+                title: 'Generate Workout Plan',
+                subtitle: 'Create a personalized training plan.',
                 loading: generatingWorkout,
                 onTap: () => _generateWorkoutPlan(user.id),
               ),
 
               _generateCard(
                 icon: Icons.auto_awesome,
-                title: "Generate New Plan",
-                subtitle: "Generate both meal and workout plans.",
+                title: 'Generate New Plan',
+                subtitle: 'Generate both meal and workout plans.',
                 loading: generatingBoth,
                 onTap: () => _generateBoth(user.id),
               ),
