@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import '../models/exercise_catalog_model.dart';
+import 'package:flutter/foundation.dart';
 import '../models/exercise_model.dart';
 import '../models/workout_day_model.dart';
 import '../services/exercise_catalog_service.dart';
@@ -51,30 +52,85 @@ class _WorkoutDayDetailsState extends State<WorkoutDayDetails> {
 
   Future<ExerciseModel> _enrichExercise(ExerciseModel exercise) async {
     try {
-      final catalog = await _catalogService.findBestMatch(
-        exercise.exerciseName,
-      );
+      ExerciseCatalogModel? catalog;
+
+      // ============================================================
+      // 1. FIRST: EXACT EXERCISEDB ID
+      // ============================================================
+      if (exercise.exerciseDbId?.trim().isNotEmpty == true) {
+        catalog = await _catalogService.findByExerciseDbId(
+          exercise.exerciseDbId!.trim(),
+        );
+      }
+
+      // ============================================================
+      // 2. SECOND: EXACT NORMALIZED NAME
+      // ============================================================
+
+      if (catalog == null && exercise.exerciseName.trim().isNotEmpty) {
+        catalog = await _catalogService.findByName(
+          exercise.exerciseName.trim(),
+        );
+      }
+
+      // ============================================================
+      // 3. LAST: SAFE FALLBACK
+      // ============================================================
+
+      if (catalog == null && exercise.exerciseName.trim().isNotEmpty) {
+        catalog = await _catalogService.findBestMatch(
+          exercise.exerciseName.trim(),
+        );
+      }
+
+      // ============================================================
+      // 4. NOTHING FOUND
+      // ============================================================
 
       if (catalog == null) {
+        debugPrint(
+          'NO CATALOG MATCH: '
+          '${exercise.exerciseName} '
+          '[${exercise.exerciseDbId}]',
+        );
+
         return exercise;
       }
 
+      debugPrint(
+        'CATALOG MATCH: '
+        '${exercise.exerciseName} '
+        '→ ${catalog.exerciseName} '
+        '[${catalog.exerciseDbId}] '
+        'GIF=${catalog.gifUrl}',
+      );
+
       return exercise.copyWith(
+        // Keep the canonical database identity.
+        exerciseName: catalog.exerciseName,
         exerciseDbId: catalog.exerciseDbId,
+
+        // Use catalog GIF.
         gifUrl: catalog.gifUrl,
+
         bodyParts: catalog.bodyParts,
         targetMuscles: catalog.targetMuscles,
         catalogSecondaryMuscles: catalog.secondaryMuscles,
         catalogInstructions: catalog.instructions,
+
         equipmentRequired: catalog.equipments.isNotEmpty
             ? catalog.equipments.join(', ')
             : exercise.equipmentRequired,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint(
+        'EXERCISE ENRICHMENT ERROR '
+        '${exercise.exerciseName}: $e',
+      );
+
       return exercise;
     }
   }
-
   // ============================================================
   // WARM UP
   // ============================================================
@@ -1122,10 +1178,7 @@ class _PreparationExerciseCardState extends State<_PreparationExerciseCard> {
   }
 }
 
-// ============================================================
 // SMALL GIF
-// ============================================================
-
 class _SmallGif extends StatelessWidget {
   final String? gifUrl;
 
@@ -1176,10 +1229,7 @@ class _SmallGif extends StatelessWidget {
   }
 }
 
-// ============================================================
 // INSTRUCTION ROW
-// ============================================================
-
 class _InstructionRow extends StatelessWidget {
   final int number;
   final String text;
@@ -1220,10 +1270,7 @@ class _InstructionRow extends StatelessWidget {
   }
 }
 
-// ============================================================
 // GIF VIEWER
-// ============================================================
-
 class _GifViewer extends StatelessWidget {
   final String gifUrl;
 
@@ -1231,14 +1278,29 @@ class _GifViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final url = gifUrl.trim();
+
+    if (url.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 260,
+        alignment: Alignment.center,
+        child: const Text(
+          'GIF not available',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       height: 260,
       color: Colors.white,
       child: Image.network(
-        gifUrl,
+        url,
         fit: BoxFit.contain,
         gaplessPlayback: true,
+
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
             return child;
@@ -1246,20 +1308,10 @@ class _GifViewer extends StatelessWidget {
 
           return const Center(child: CircularProgressIndicator());
         },
+
         errorBuilder: (context, error, stackTrace) {
           return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Animated Video Coming Soon ....',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+            child: Column(children: [Text('Animated Video Coming Soon ....')]),
           );
         },
       ),
@@ -1267,10 +1319,7 @@ class _GifViewer extends StatelessWidget {
   }
 }
 
-// ============================================================
 // REST DAY
-// ============================================================
-
 class _RestDayCard extends StatelessWidget {
   final WorkoutDayModel day;
 
@@ -1307,10 +1356,7 @@ class _RestDayCard extends StatelessWidget {
   }
 }
 
-// ============================================================
 // SECTION
-// ============================================================
-
 class _Section extends StatefulWidget {
   final String title;
   final IconData icon;
@@ -1396,10 +1442,7 @@ class _SectionState extends State<_Section> {
   }
 }
 
-// ============================================================
 // CHIP
-// ============================================================
-
 class _Chip extends StatelessWidget {
   final String text;
 
@@ -1421,10 +1464,7 @@ class _Chip extends StatelessWidget {
   }
 }
 
-// ============================================================
 // LABEL
-// ============================================================
-
 class _Label extends StatelessWidget {
   final String title;
 

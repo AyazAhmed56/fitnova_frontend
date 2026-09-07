@@ -14,7 +14,8 @@ class ExerciseLibraryScreen extends StatefulWidget {
 }
 
 class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
-  final ExerciseCatalogService _catalogService = ExerciseCatalogService.instance;
+  final ExerciseCatalogService _catalogService =
+      ExerciseCatalogService.instance;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -827,15 +828,32 @@ class _ExerciseGif extends StatelessWidget {
           },
 
           errorBuilder: (context, error, stackTrace) {
-            return const Center(
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: Colors.grey,
-                size: 36,
+            debugPrint('========================================');
+            debugPrint('GIF LOAD FAILED');
+            debugPrint('GIF URL: $gifUrl');
+            debugPrint('ERROR: $error');
+            debugPrint('========================================');
+
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.grey,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'GIF Error',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 10),
+                  ),
+                ],
               ),
             );
           },
         ),
+        
       ),
     );
   }
