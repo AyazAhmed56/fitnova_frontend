@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AiCoachService {
-  static const String baseUrl = "http://127.0.0.1:8000";
+  static const String baseUrl =
+      "https://fitnovabackend-production.up.railway.app";
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -163,7 +164,8 @@ class AiCoachService {
 
         return data["response"] ?? "No response received.";
       }
-
+      print("AI Coach Error: ${response.statusCode}");
+      print("AI Coach Body: ${response.body}");
       return "Something went wrong. Please try again.";
     } catch (e) {
       return "Unable to connect to FitNova AI Coach.";
