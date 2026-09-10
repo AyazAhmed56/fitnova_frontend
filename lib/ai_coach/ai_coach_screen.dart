@@ -13,70 +13,80 @@ class AiCoachScreen extends StatefulWidget {
 }
 
 class _AiCoachScreenState extends State<AiCoachScreen> {
+  // ============================================================
+  // CONTROLLERS
+  // ============================================================
+
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   final AiCoachService _aiCoachService = AiCoachService();
 
+  // ============================================================
+  // STATE
+  // ============================================================
+
   List<Map<String, dynamic>> _chats = [];
+
   List<Map<String, String>> _messages = [];
 
   String? _currentChatId;
 
+  // Current selected chat theme color
+  Color _currentChatColor = const Color(0xff7652e8);
+
   bool _isLoading = false;
   bool _isLoadingChats = true;
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
+
     _initializeCoach();
   }
 
+  // ============================================================
   // INITIALIZE AI COACH
+  // ============================================================
+
   Future<void> _initializeCoach() async {
     await _loadChats();
 
     if (!mounted) return;
 
-    // No chats -> create new chat
-    if (_chats.isEmpty) {
-      await _createNewChat();
-      return;
-    }
-
-    final latestChat = _chats.first;
-
-    final updatedAt = latestChat["updated_at"];
-
-    if (updatedAt == null) {
-      await _createNewChat();
-      return;
-    }
-
-    final lastActivity = DateTime.tryParse(updatedAt.toString());
-
-    if (lastActivity == null) {
-      await _createNewChat();
-      return;
-    }
-
-    final now = DateTime.now();
-
-    final difference = now.difference(lastActivity.toLocal());
-
     // ------------------------------------------------------------
-    // Within 1 hour -> continue previous chat
-    // More than 1 hour -> create new chat
+    // If previous chats exist:
+    // Open the latest chat.
     // ------------------------------------------------------------
 
-    if (difference <= const Duration(hours: 1)) {
-      await _openChat(latestChat["id"]);
-    } else {
-      await _createNewChat();
+    if (_chats.isNotEmpty) {
+      await _openChat(_chats.first["id"]);
+      return;
     }
+
+    // ------------------------------------------------------------
+    // No chats:
+    // Start an EMPTY temporary chat.
+    //
+    // IMPORTANT:
+    // Nothing is inserted into Supabase here.
+    // ------------------------------------------------------------
+
+    setState(() {
+      _currentChatId = null;
+      _messages = [];
+      _currentChatColor = const Color(0xff7652e8);
+    });
   }
 
+  // ============================================================
   // LOAD CHATS
+  // ============================================================
+
   Future<void> _loadChats() async {
     try {
       final chats = await _aiCoachService.getChats();
@@ -88,6 +98,8 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
         _isLoadingChats = false;
       });
     } catch (e) {
+      debugPrint("Load chats error: $e");
+
       if (!mounted) return;
 
       setState(() {
@@ -96,35 +108,41 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     }
   }
 
-  // CREATE NEW CHAT
-  Future<void> _createNewChat() async {
-    try {
-      final chat = await _aiCoachService.createChat();
+  // ============================================================
+  // START NEW TEMPORARY CHAT
+  // ============================================================
+  //
+  // This does NOT create a Supabase row.
+  //
+  // A real chat will only be created when the user sends
+  // the first message.
+  //
+  // ============================================================
 
-      if (!mounted) return;
+  void _startNewChat() {
+    setState(() {
+      _currentChatId = null;
+      _messages = [];
+      _currentChatColor = const Color(0xff7652e8);
+    });
 
-      setState(() {
-        _chats.removeWhere((item) => item["id"] == chat["id"]);
-
-        _chats.insert(0, chat);
-
-        _currentChatId = chat["id"];
-
-        _messages = [];
-      });
-
-      _scrollToBottom();
-    } catch (e) {
-      debugPrint("Create chat error: $e");
-    }
+    _scrollToBottom();
   }
 
-  // OPEN CHAT
+  // ============================================================
+  // OPEN EXISTING CHAT
+  // ============================================================
+
   Future<void> _openChat(String chatId) async {
     try {
       final messages = await _aiCoachService.getMessages(chatId);
 
       if (!mounted) return;
+
+      final chat = _chats.firstWhere(
+        (chat) => chat["id"] == chatId,
+        orElse: () => {},
+      );
 
       setState(() {
         _currentChatId = chatId;
@@ -135,6 +153,8 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
             "message": message["message"].toString(),
           };
         }).toList();
+
+        _currentChatColor = _getChatColor(chat);
       });
 
       _scrollToBottom();
@@ -143,7 +163,10 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     }
   }
 
+  // ============================================================
   // SEND MESSAGE
+  // ============================================================
+
   Future<void> _sendMessage() async {
     final message = _controller.text.trim();
 
@@ -157,18 +180,66 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       return;
     }
 
-    // Safety: create chat if none exists
-    if (_currentChatId == null) {
-      await _createNewChat();
-    }
-
-    final chatId = _currentChatId;
-
-    if (chatId == null) {
-      return;
-    }
+    // ------------------------------------------------------------
+    // Clear input
+    // ------------------------------------------------------------
 
     _controller.clear();
+
+    // ------------------------------------------------------------
+    // GET CURRENT CHAT
+    // ------------------------------------------------------------
+
+    String? chatId = _currentChatId;
+
+    // ------------------------------------------------------------
+    // FIRST MESSAGE OF A NEW CHAT
+    //
+    // Create the database chat ONLY now.
+    // ------------------------------------------------------------
+
+    if (chatId == null) {
+      try {
+        final title = message.length > 35
+            ? "${message.substring(0, 35)}..."
+            : message;
+
+        final chat = await _aiCoachService.createChat(title: title);
+
+        chatId = chat["id"]?.toString();
+
+        if (chatId == null || chatId!.isEmpty) {
+          throw Exception("Chat ID was not created");
+        }
+
+        if (!mounted) return;
+
+        setState(() {
+          _currentChatId = chatId;
+
+          _currentChatColor = _getChatColor(chat);
+
+          // Add to local history.
+          _chats.insert(0, chat);
+        });
+      } catch (e) {
+        debugPrint("Create chat error: $e");
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Unable to create chat. Please try again."),
+            ),
+          );
+        }
+
+        return;
+      }
+    }
+
+    // ------------------------------------------------------------
+    // SHOW USER MESSAGE IMMEDIATELY
+    // ------------------------------------------------------------
 
     setState(() {
       _messages.add({"sender": "user", "message": message});
@@ -179,28 +250,32 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     _scrollToBottom();
 
     try {
-      // Save user message
+      // ----------------------------------------------------------
+      // SAVE USER MESSAGE
+      // ----------------------------------------------------------
+
       await _aiCoachService.saveMessage(
-        chatId: chatId,
+        chatId: chatId!,
         sender: "user",
         message: message,
       );
 
-      // First message becomes title
-      final currentChat = _chats.firstWhere(
-        (chat) => chat["id"] == chatId,
-        orElse: () => {},
-      );
+      // ----------------------------------------------------------
+      // SEND TO RAILWAY FASTAPI
+      //
+      // FastAPI
+      //   ↓
+      // NLP
+      //   ↓
+      // ML intent
+      //   ↓
+      // Entity extraction
+      //   ↓
+      // Decision engine
+      //   ↓
+      // Gemini
+      // ----------------------------------------------------------
 
-      if (currentChat["title"] == "New Chat") {
-        final title = message.length > 35
-            ? "${message.substring(0, 35)}..."
-            : message;
-
-        await _aiCoachService.updateChatTitle(chatId: chatId, title: title);
-      }
-
-      // Send to FastAPI -> NLP -> ML -> Gemini
       final response = await _aiCoachService.sendMessage(
         userId: user.id,
         message: message,
@@ -208,42 +283,69 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
       if (!mounted) return;
 
+      // ----------------------------------------------------------
+      // SHOW AI RESPONSE
+      // ----------------------------------------------------------
+
       setState(() {
         _messages.add({"sender": "ai", "message": response});
 
         _isLoading = false;
       });
 
-      // Save AI response
+      _scrollToBottom();
+
+      // ----------------------------------------------------------
+      // SAVE AI RESPONSE
+      // ----------------------------------------------------------
+
       await _aiCoachService.saveMessage(
-        chatId: chatId,
+        chatId: chatId!,
         sender: "ai",
         message: response,
       );
 
-      // Refresh sidebar
+      // ----------------------------------------------------------
+      // REFRESH HISTORY
+      // ----------------------------------------------------------
+
       await _loadChats();
+
+      // Make sure current chat ID remains selected.
+      if (mounted) {
+        setState(() {
+          _currentChatId = chatId;
+        });
+      }
 
       _scrollToBottom();
     } catch (e) {
+      debugPrint("Send message error: $e");
+
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
+
         _messages.add({
           "sender": "ai",
           "message": "Something went wrong. Please try again.",
         });
       });
+
+      _scrollToBottom();
     }
   }
 
-  // PIN CHAT
+  // ============================================================
+  // PIN / UNPIN
+  // ============================================================
+
   Future<void> _togglePin(Map<String, dynamic> chat) async {
     try {
       await _aiCoachService.togglePinChat(
-        chatId: chat["id"],
-        isPinned: chat["is_pinned"] ?? false,
+        chatId: chat["id"].toString(),
+        isPinned: chat["is_pinned"] == true,
       );
 
       await _loadChats();
@@ -252,9 +354,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     }
   }
 
+  // ============================================================
   // DELETE CHAT
+  // ============================================================
+
   Future<void> _deleteChat(Map<String, dynamic> chat) async {
-    final chatId = chat["id"];
+    final chatId = chat["id"].toString();
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -290,28 +395,38 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       if (!mounted) return;
 
       setState(() {
-        _chats.removeWhere((item) => item["id"] == chatId);
+        _chats.removeWhere((item) => item["id"].toString() == chatId);
       });
 
-      // If currently opened chat was deleted
+      // ----------------------------------------------------------
+      // If current chat was deleted:
+      //
+      // DO NOT create a database chat.
+      // Just start an empty temporary chat.
+      // ----------------------------------------------------------
+
       if (_currentChatId == chatId) {
-        await _createNewChat();
+        _startNewChat();
       }
     } catch (e) {
       debugPrint("Delete chat error: $e");
     }
   }
 
+  // ============================================================
   // CHANGE CHAT COLOR
+  // ============================================================
+
   Future<void> _changeChatColor(Map<String, dynamic> chat) async {
     final colors = [
-      Colors.deepPurple,
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.pink,
-      Colors.teal,
-      Colors.indigo,
+      const Color(0xff7652e8),
+      const Color(0xff2563eb),
+      const Color(0xff059669),
+      const Color(0xffea580c),
+      const Color(0xffdb2777),
+      const Color(0xff0891b2),
+      const Color(0xff4f46e5),
+      const Color(0xff7c3aed),
     ];
 
     final selectedColor = await showModalBottomSheet<Color>(
@@ -324,12 +439,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.85)),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.90)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    "Choose Chat Color",
+                    "Choose Chat Theme",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
 
@@ -339,17 +454,35 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                     spacing: 18,
                     runSpacing: 18,
                     children: colors.map((color) {
+                      final isSelected = _currentChatColor.value == color.value;
+
                       return GestureDetector(
                         onTap: () {
                           Navigator.pop(context, color);
                         },
                         child: Container(
-                          width: 46,
-                          height: 46,
+                          width: 50,
+                          height: 50,
                           decoration: BoxDecoration(
                             color: color,
                             shape: BoxShape.circle,
+                            border: isSelected
+                                ? Border.all(color: Colors.black87, width: 3)
+                                : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.35),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ],
                           ),
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                )
+                              : null,
                         ),
                       );
                     }).toList(),
@@ -366,39 +499,82 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
     if (selectedColor == null) return;
 
-    await _aiCoachService.updateChatColor(
-      chatId: chat["id"],
-      color: selectedColor.value,
-    );
+    // ------------------------------------------------------------
+    // Update UI immediately
+    // ------------------------------------------------------------
 
-    await _loadChats();
+    if (_currentChatId == chat["id"].toString()) {
+      setState(() {
+        _currentChatColor = selectedColor;
+      });
+    }
+
+    // ------------------------------------------------------------
+    // Save color to Supabase
+    // ------------------------------------------------------------
+
+    try {
+      await _aiCoachService.updateChatColor(
+        chatId: chat["id"].toString(),
+        color: selectedColor.value,
+      );
+
+      // ----------------------------------------------------------
+      // Update local chat object too.
+      // This makes sidebar update immediately.
+      // ----------------------------------------------------------
+
+      if (!mounted) return;
+
+      setState(() {
+        final index = _chats.indexWhere(
+          (item) => item["id"].toString() == chat["id"].toString(),
+        );
+
+        if (index != -1) {
+          _chats[index]["color"] = selectedColor.value;
+        }
+      });
+    } catch (e) {
+      debugPrint("Update chat color error: $e");
+    }
   }
 
-  // SCROLL
+  // ============================================================
+  // SCROLL TO BOTTOM
+  // ============================================================
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      if (!_scrollController.hasClients) {
+        return;
       }
+
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     });
   }
 
+  // ============================================================
   // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff4f0ff),
+      backgroundColor: _currentChatColor.withOpacity(0.05),
 
+      // ========================================================
+      // APP BAR
+      // ========================================================
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
 
-        // BACK + SIDEBAR
-        leadingWidth: 100,
+        leadingWidth: 60,
 
         leading: Builder(
           builder: (context) {
@@ -411,25 +587,34 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
           },
         ),
 
-        title: const Text(
+        title: Text(
           "FitNova AI Coach",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: _currentChatColor,
+          ),
         ),
 
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.80),
-                const Color(0xffeee7ff).withOpacity(0.70),
+                Colors.white.withOpacity(0.85),
+                _currentChatColor.withOpacity(0.10),
               ],
             ),
           ),
         ),
       ),
 
+      // ========================================================
+      // SIDEBAR
+      // ========================================================
       drawer: _buildSidebar(),
 
+      // ========================================================
+      // CHAT BODY
+      // ========================================================
       body: _buildChatBody(),
     );
   }
@@ -443,41 +628,51 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       width: double.infinity,
       height: double.infinity,
 
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xffeee9ff),
-            Color(0xffe9f7ff),
-            Color(0xfff7eaff),
-            Color(0xffe5fff7),
+            _currentChatColor.withOpacity(0.16),
+            Colors.white.withOpacity(0.90),
+            _currentChatColor.withOpacity(0.08),
+            _currentChatColor.withOpacity(0.14),
           ],
         ),
       ),
 
       child: Stack(
         children: [
-          // Decorative glowing circles
+          // ======================================================
+          // DECORATIVE GLOW 1
+          // ======================================================
           Positioned(
             top: -80,
             right: -50,
-            child: _glowCircle(220, const Color(0xff9c6cff)),
+            child: _glowCircle(220, _currentChatColor),
           ),
 
+          // ======================================================
+          // DECORATIVE GLOW 2
+          // ======================================================
           Positioned(
             top: 220,
             left: -100,
-            child: _glowCircle(230, const Color(0xff6dd5ed)),
+            child: _glowCircle(230, _currentChatColor),
           ),
 
+          // ======================================================
+          // DECORATIVE GLOW 3
+          // ======================================================
           Positioned(
             bottom: 100,
             right: -80,
-            child: _glowCircle(240, const Color(0xffff9de2)),
+            child: _glowCircle(240, _currentChatColor),
           ),
 
-          // Blur decorative layer
+          // ======================================================
+          // BLUR LAYER
+          // ======================================================
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
@@ -485,6 +680,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
             ),
           ),
 
+          // ======================================================
+          // CHAT CONTENT
+          // ======================================================
           Column(
             children: [
               Expanded(
@@ -507,16 +705,25 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                       ),
               ),
 
+              // ==================================================
+              // LOADING INDICATOR
+              // ==================================================
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _currentChatColor,
+                    ),
                   ),
                 ),
 
+              // ==================================================
+              // INPUT
+              // ==================================================
               _buildInput(),
             ],
           ),
@@ -535,7 +742,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withOpacity(0.20),
+        color: color.withOpacity(0.18),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.25),
@@ -554,14 +761,17 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   Widget _buildMessageBubble(String message, bool isUser) {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
+
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.82,
         ),
 
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
+
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
 
@@ -569,10 +779,19 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
 
               decoration: BoxDecoration(
+                // ==================================================
+                // USER MESSAGE
+                // ==================================================
                 gradient: isUser
-                    ? const LinearGradient(
-                        colors: [Color(0xff7652e8), Color(0xff9c55e8)],
+                    ? LinearGradient(
+                        colors: [
+                          _currentChatColor,
+                          _currentChatColor.withOpacity(0.72),
+                        ],
                       )
+                    // =================================================
+                    // AI MESSAGE
+                    // =================================================
                     : LinearGradient(
                         colors: [
                           Colors.white.withOpacity(0.88),
@@ -595,9 +814,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
               child: Text(
                 message,
+
                 style: TextStyle(
                   color: isUser ? Colors.white : const Color(0xff202033),
+
                   fontSize: 15,
+
                   height: 1.45,
                 ),
               ),
@@ -614,67 +836,85 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
   Widget _buildNewChatPlaceholder() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xff7652e8),
-                  Color(0xffb65cff),
-                  Color(0xff5ed9d2),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // ====================================================
+            // AI ICON
+            // ====================================================
+            Container(
+              width: 90,
+              height: 90,
+
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+
+                gradient: LinearGradient(
+                  colors: [
+                    _currentChatColor,
+                    _currentChatColor.withOpacity(0.65),
+                    const Color(0xff5ed9d2),
+                  ],
+                ),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: _currentChatColor.withOpacity(0.30),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                  ),
                 ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xff8b5cf6).withOpacity(0.3),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
-              ],
+
+              child: const Icon(
+                Icons.smart_toy_rounded,
+                color: Colors.white,
+                size: 48,
+              ),
             ),
-            child: const Icon(
-              Icons.smart_toy_rounded,
-              color: Colors.white,
-              size: 48,
+
+            const SizedBox(height: 22),
+
+            // ====================================================
+            // TITLE
+            // ====================================================
+            const Text(
+              "Hi, I'm FitNova AI",
+              style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
             ),
-          ),
 
-          const SizedBox(height: 22),
+            const SizedBox(height: 8),
 
-          const Text(
-            "Hi, I'm FitNova AI",
-            style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            "Your personal fitness & wellness coach",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-          ),
-
-          const SizedBox(height: 20),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.55),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white),
-            ),
-            child: const Text(
-              "Ask me anything about your health, diet or workout.",
+            Text(
+              "Your personal fitness & wellness coach",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 20),
+
+            // ====================================================
+            // DESCRIPTION
+            // ====================================================
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white),
+              ),
+
+              child: const Text(
+                "Ask me anything about your health, diet or workout.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -686,8 +926,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   Widget _buildInput() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+
       child: Row(
         children: [
+          // ======================================================
+          // TEXT FIELD
+          // ======================================================
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(30),
@@ -710,6 +954,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                     hintStyle: TextStyle(color: Colors.grey.shade600),
 
                     filled: true,
+
                     fillColor: Colors.white.withOpacity(0.72),
 
                     contentPadding: const EdgeInsets.symmetric(
@@ -717,24 +962,36 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                       vertical: 15,
                     ),
 
+                    // ==================================================
+                    // NORMAL BORDER
+                    // ==================================================
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
+
                       borderSide: BorderSide(
                         color: Colors.white.withOpacity(0.8),
                       ),
                     ),
 
+                    // ==================================================
+                    // ENABLED BORDER
+                    // ==================================================
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
+
                       borderSide: BorderSide(
                         color: Colors.white.withOpacity(0.8),
                       ),
                     ),
 
+                    // ==================================================
+                    // FOCUSED BORDER
+                    // ==================================================
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(
-                        color: Color(0xff7652e8),
+
+                      borderSide: BorderSide(
+                        color: _currentChatColor,
                         width: 1.5,
                       ),
                     ),
@@ -746,14 +1003,30 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
           const SizedBox(width: 9),
 
+          // ======================================================
+          // SEND BUTTON
+          // ======================================================
           Container(
             width: 52,
             height: 52,
-            decoration: const BoxDecoration(
+
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
+
               gradient: LinearGradient(
-                colors: [Color(0xff7652e8), Color(0xffa855f7)],
+                colors: [
+                  _currentChatColor,
+                  _currentChatColor.withOpacity(0.72),
+                ],
               ),
+
+              boxShadow: [
+                BoxShadow(
+                  color: _currentChatColor.withOpacity(0.25),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
 
             child: IconButton(
@@ -778,7 +1051,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   Widget _buildSidebar() {
     return Drawer(
       width: 315,
+
       backgroundColor: Colors.transparent,
+
       elevation: 0,
 
       child: ClipRRect(
@@ -808,7 +1083,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
             child: SafeArea(
               child: Column(
                 children: [
+                  // =================================================
                   // SIDEBAR HEADER
+                  // =================================================
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 18, 12, 10),
 
@@ -817,16 +1094,19 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                         Container(
                           width: 48,
                           height: 48,
-                          decoration: const BoxDecoration(
+
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
+
                             gradient: LinearGradient(
                               colors: [
-                                Color(0xff7652e8),
-                                Color(0xffa855f7),
-                                Color(0xff54d8d0),
+                                _currentChatColor,
+                                _currentChatColor.withOpacity(0.70),
+                                const Color(0xff54d8d0),
                               ],
                             ),
                           ),
+
                           child: const Icon(
                             Icons.smart_toy_rounded,
                             color: Colors.white,
@@ -869,7 +1149,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                     ),
                   ),
 
+                  // =================================================
                   // NEW CHAT
+                  // =================================================
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -877,36 +1159,44 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                     ),
 
                     child: GestureDetector(
-                      onTap: () async {
+                      onTap: () {
                         Navigator.pop(context);
 
-                        await _createNewChat();
+                        // IMPORTANT:
+                        // Does NOT create a database row.
+                        _startNewChat();
                       },
 
                       child: Container(
                         height: 52,
+
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              const Color(0xff7652e8).withOpacity(0.14),
-                              const Color(0xffa855f7).withOpacity(0.10),
+                              _currentChatColor.withOpacity(0.14),
+                              _currentChatColor.withOpacity(0.08),
                             ],
                           ),
+
                           borderRadius: BorderRadius.circular(18),
+
                           border: Border.all(
                             color: Colors.white.withOpacity(0.9),
                           ),
                         ),
 
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+
                           children: [
-                            Icon(Icons.add_rounded, color: Color(0xff7652e8)),
-                            SizedBox(width: 8),
+                            Icon(Icons.add_rounded, color: _currentChatColor),
+
+                            const SizedBox(width: 8),
+
                             Text(
                               "New Chat",
                               style: TextStyle(
-                                color: Color(0xff7652e8),
+                                color: _currentChatColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -918,34 +1208,60 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
                   const SizedBox(height: 8),
 
-                  // PINNED
-                  if (_chats.any((chat) => chat["is_pinned"] == true))
-                    _buildChatSection("PINNED", true),
+                  // =================================================
+                  // LOADING
+                  // =================================================
+                  if (_isLoadingChats)
+                    Expanded(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: _currentChatColor,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    // ===============================================
+                    // PINNED
+                    // ===============================================
+                    if (_chats.any((chat) => chat["is_pinned"] == true))
+                      _buildChatSection("PINNED", true),
 
-                  // RECENT
-                  _buildChatSection("RECENT CHATS", false),
+                    // ===============================================
+                    // RECENT
+                    // ===============================================
+                    _buildChatSection("RECENT CHATS", false),
+                  ],
 
+                  // =================================================
                   // FOOTER
+                  // =================================================
                   Padding(
                     padding: const EdgeInsets.all(16),
+
                     child: Container(
                       padding: const EdgeInsets.all(14),
+
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.45),
+
                         borderRadius: BorderRadius.circular(18),
+
                         border: Border.all(
                           color: Colors.white.withOpacity(0.8),
                         ),
                       ),
-                      child: const Row(
+
+                      child: Row(
                         children: [
                           Icon(
                             Icons.auto_awesome,
                             size: 20,
-                            color: Color(0xff7652e8),
+                            color: _currentChatColor,
                           ),
-                          SizedBox(width: 10),
-                          Expanded(
+
+                          const SizedBox(width: 10),
+
+                          const Expanded(
                             child: Text(
                               "Chats older than 30 days are automatically removed.",
                               style: TextStyle(
@@ -978,6 +1294,10 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       return pinned ? isPinned : !isPinned;
     }).toList();
 
+    // ------------------------------------------------------------
+    // No chats
+    // ------------------------------------------------------------
+
     if (chats.isEmpty) {
       return const SizedBox();
     }
@@ -987,6 +1307,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
+          // ========================================================
+          // SECTION TITLE
+          // ========================================================
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
 
@@ -1001,6 +1324,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
             ),
           ),
 
+          // ========================================================
+          // CHAT LIST
+          // ========================================================
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1010,7 +1336,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
               itemBuilder: (context, index) {
                 final chat = chats[index];
 
-                final isCurrent = chat["id"] == _currentChatId;
+                final isCurrent = chat["id"].toString() == _currentChatId;
 
                 final color = _getChatColor(chat);
 
@@ -1028,40 +1354,63 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                   ),
 
                   child: ListTile(
+                    // =================================================
+                    // OPEN CHAT
+                    // =================================================
                     onTap: () async {
                       Navigator.pop(context);
 
-                      await _openChat(chat["id"]);
+                      await _openChat(chat["id"].toString());
                     },
 
+                    // =================================================
+                    // CHAT ICON
+                    // =================================================
                     leading: Container(
                       width: 38,
                       height: 38,
+
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.15),
+
                         borderRadius: BorderRadius.circular(11),
                       ),
+
                       child: Icon(
                         chat["is_pinned"] == true
                             ? Icons.push_pin_rounded
                             : Icons.chat_bubble_outline_rounded,
+
                         color: color,
+
                         size: 19,
                       ),
                     ),
 
+                    // =================================================
+                    // TITLE
+                    // =================================================
                     title: Text(
                       chat["title"] ?? "New Chat",
+
                       maxLines: 1,
+
                       overflow: TextOverflow.ellipsis,
+
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
 
+                    // =================================================
+                    // DATE
+                    // =================================================
                     subtitle: _buildChatDate(chat),
 
+                    // =================================================
+                    // MENU
+                    // =================================================
                     trailing: PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert_rounded, size: 20),
 
@@ -1083,8 +1432,12 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                         final pinned = chat["is_pinned"] == true;
 
                         return [
+                          // ==========================================
+                          // PIN
+                          // ==========================================
                           PopupMenuItem(
                             value: "pin",
+
                             child: Row(
                               children: [
                                 Icon(
@@ -1093,25 +1446,37 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                                       : Icons.push_pin_outlined,
                                   size: 19,
                                 ),
+
                                 const SizedBox(width: 10),
+
                                 Text(pinned ? "Unpin" : "Pin"),
                               ],
                             ),
                           ),
 
+                          // ==========================================
+                          // COLOR
+                          // ==========================================
                           const PopupMenuItem(
                             value: "color",
+
                             child: Row(
                               children: [
                                 Icon(Icons.palette_outlined, size: 19),
+
                                 SizedBox(width: 10),
+
                                 Text("Change color"),
                               ],
                             ),
                           ),
 
+                          // ==========================================
+                          // DELETE
+                          // ==========================================
                           const PopupMenuItem(
                             value: "delete",
+
                             child: Row(
                               children: [
                                 Icon(
@@ -1119,7 +1484,9 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                                   size: 19,
                                   color: Colors.red,
                                 ),
+
                                 SizedBox(width: 10),
+
                                 Text(
                                   "Delete",
                                   style: TextStyle(color: Colors.red),
@@ -1161,6 +1528,7 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
 
     return Text(
       "${local.day}/${local.month}/${local.year}",
+
       style: const TextStyle(fontSize: 10, color: Colors.black45),
     );
   }
@@ -1172,14 +1540,17 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   Color _getChatColor(Map<String, dynamic> chat) {
     final value = chat["color"];
 
+    // Default color
     if (value == null) {
       return const Color(0xff7652e8);
     }
 
+    // Supabase integer
     if (value is int) {
       return Color(value);
     }
 
+    // Supabase may return number as String
     if (value is String) {
       final parsed = int.tryParse(value);
 
@@ -1191,35 +1562,42 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     return const Color(0xff7652e8);
   }
 
+  // ============================================================
   // EMPTY CHATS
-  Widget _buildEmptyChats() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline_rounded,
-            size: 45,
-            color: const Color(0xff7652e8),
-          ),
+  // ============================================================
 
-          const SizedBox(height: 12),
+  // Widget _buildEmptyChats() {
+  //   return Center(
+  //     child: Column(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: [
+  //         Icon(
+  //           Icons.chat_bubble_outline_rounded,
+  //           size: 45,
+  //           color: _currentChatColor,
+  //         ),
 
-          const Text(
-            "No chats yet",
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
+  //         const SizedBox(height: 12),
 
-          const SizedBox(height: 6),
+  //         const Text(
+  //           "No chats yet",
+  //           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+  //         ),
 
-          const Text(
-            "Start a new conversation.",
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ],
-      ),
-    );
-  }
+  //         const SizedBox(height: 6),
+
+  //         const Text(
+  //           "Start a new conversation.",
+  //           style: TextStyle(fontSize: 12, color: Colors.black54),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
 
   @override
   void dispose() {

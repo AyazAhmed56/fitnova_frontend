@@ -8,9 +8,9 @@ class AiCoachService {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // -----------------------------
+  // ============================================================
   // CREATE NEW CHAT
-  // -----------------------------
+  // ============================================================
 
   Future<Map<String, dynamic>> createChat({String title = "New Chat"}) async {
     final user = _supabase.auth.currentUser;
@@ -28,9 +28,10 @@ class AiCoachService {
     return result;
   }
 
-  // -----------------------------
+  // ============================================================
   // GET USER CHATS
-  // -----------------------------
+  // ONLY RETURN CHATS THAT CONTAIN MESSAGES
+  // ============================================================
 
   Future<List<Map<String, dynamic>>> getChats() async {
     final user = _supabase.auth.currentUser;
@@ -41,17 +42,33 @@ class AiCoachService {
 
     final result = await _supabase
         .from("ai_chats")
-        .select()
+        .select("*, ai_chat_messages(count)")
         .eq("user_id", user.id)
         .order("is_pinned", ascending: false)
         .order("updated_at", ascending: false);
 
-    return List<Map<String, dynamic>>.from(result);
+    final chats = <Map<String, dynamic>>[];
+
+    for (final chat in result) {
+      final messageCount =
+          (chat["ai_chat_messages"] as List?)?.isNotEmpty == true
+          ? ((chat["ai_chat_messages"] as List).first["count"] ?? 0)
+          : 0;
+
+      // Don't show empty chats in history
+      if (messageCount > 0) {
+        final cleanChat = Map<String, dynamic>.from(chat);
+        cleanChat.remove("ai_chat_messages");
+        chats.add(cleanChat);
+      }
+    }
+
+    return chats;
   }
 
-  // -----------------------------
+  // ============================================================
   // GET CHAT MESSAGES
-  // -----------------------------
+  // ============================================================
 
   Future<List<Map<String, dynamic>>> getMessages(String chatId) async {
     final user = _supabase.auth.currentUser;
@@ -70,9 +87,9 @@ class AiCoachService {
     return List<Map<String, dynamic>>.from(result);
   }
 
-  // -----------------------------
+  // ============================================================
   // SAVE MESSAGE
-  // -----------------------------
+  // ============================================================
 
   Future<void> saveMessage({
     required String chatId,
@@ -99,9 +116,9 @@ class AiCoachService {
         .eq("user_id", user.id);
   }
 
-  // -----------------------------
+  // ============================================================
   // PIN / UNPIN CHAT
-  // -----------------------------
+  // ============================================================
 
   Future<void> togglePinChat({
     required String chatId,
@@ -120,9 +137,9 @@ class AiCoachService {
         .eq("user_id", user.id);
   }
 
-  // -----------------------------
+  // ============================================================
   // UPDATE CHAT TITLE
-  // -----------------------------
+  // ============================================================
 
   Future<void> updateChatTitle({
     required String chatId,
@@ -144,9 +161,9 @@ class AiCoachService {
         .eq("user_id", user.id);
   }
 
-  // -----------------------------
+  // ============================================================
   // SEND TO AI
-  // -----------------------------
+  // ============================================================
 
   Future<String> sendMessage({
     required String userId,
@@ -164,27 +181,53 @@ class AiCoachService {
 
         return data["response"] ?? "No response received.";
       }
+
       print("AI Coach Error: ${response.statusCode}");
       print("AI Coach Body: ${response.body}");
+
       return "Something went wrong. Please try again.";
     } catch (e) {
+      print("AI Coach Connection Error: $e");
       return "Unable to connect to FitNova AI Coach.";
     }
   }
 
-  //DELETE
+  // ============================================================
+  // DELETE CHAT
+  // ============================================================
+
   Future<void> deleteChat(String chatId) async {
-    await Supabase.instance.client.from('ai_chats').delete().eq('id', chatId);
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw Exception("User not logged in");
+    }
+
+    await _supabase
+        .from("ai_chats")
+        .delete()
+        .eq("id", chatId)
+        .eq("user_id", user.id);
   }
 
-  //UPDATE
+  // ============================================================
+  // UPDATE CHAT COLOR
+  // ============================================================
+
   Future<void> updateChatColor({
     required String chatId,
     required int color,
   }) async {
-    await Supabase.instance.client
-        .from('ai_chats')
-        .update({'color': color})
-        .eq('id', chatId);
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw Exception("User not logged in");
+    }
+
+    await _supabase
+        .from("ai_chats")
+        .update({"color": color})
+        .eq("id", chatId)
+        .eq("user_id", user.id);
   }
 }
