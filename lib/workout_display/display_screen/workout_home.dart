@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/services/supabase_service.dart';
@@ -23,15 +24,27 @@ class WorkoutHome extends StatefulWidget {
 
 class _WorkoutHomeState extends State<WorkoutHome> {
   final WorkoutRepository _repository = WorkoutRepository.instance;
-
   bool generating = false;
-
   late Future<WorkoutPlanModel?> _planFuture;
+  Timer? _statusTimer;
 
   @override
   void initState() {
     super.initState();
     _loadPlan();
+
+    // Rebuild the status card every minute
+    _statusTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
   }
 
   void _loadPlan() {
@@ -237,10 +250,15 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                 (sum, day) => sum + day.coolDown.length,
               );
 
-              final progress =
-                  (remaining.inSeconds /
-                          SupabaseService.workoutPlanExpiry.inSeconds)
-                      .clamp(0.0, 1.0);
+              final totalDuration = SupabaseService.workoutPlanExpiry;
+
+              final progress = (remaining.inSeconds / totalDuration.inSeconds)
+                  .clamp(0.0, 1.0);
+
+              // Use ceil so a newly-created 30-day plan shows 30 Days Left
+              final daysLeft = (remaining.inSeconds / Duration.secondsPerDay)
+                  .ceil()
+                  .clamp(0, 30);
 
               return SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -260,8 +278,7 @@ class _WorkoutHomeState extends State<WorkoutHome> {
                     // ------------------------------------------------
                     // PLAN STATUS
                     // ------------------------------------------------
-                    _planStatusCard(progress, remaining.inDays.clamp(0, 30)),
-
+                    _planStatusCard(progress, daysLeft),
                     const SizedBox(height: 20),
 
                     // ------------------------------------------------
@@ -693,7 +710,7 @@ class _WorkoutHomeState extends State<WorkoutHome> {
           const SizedBox(height: 8),
 
           Text(
-            "${(progress * 100).toInt()}% Remaining",
+            "${(progress * 100).ceil()}% Remaining",
             style: const TextStyle(color: Colors.white70),
           ),
         ],

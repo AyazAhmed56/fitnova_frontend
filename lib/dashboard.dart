@@ -103,9 +103,9 @@ class _DashboardState extends State<Dashboard> {
                         final mealExists = mealPlan != null;
                         final workoutExists = workoutPlan != null;
 
-                        final mealProgress = mealExists
-                            ? supabase.getPlanProgress(mealPlan)
-                            : 0.0;
+                        // final mealProgress = mealExists
+                        //     ? supabase.getPlanProgress(mealPlan)
+                        //     : 0.0;
 
                         final mealRemaining = mealExists
                             ? supabase.formatRemainingTime(
@@ -236,170 +236,169 @@ class _DashboardState extends State<Dashboard> {
                                 ),
                               ),
 
-                              SizedBox(height: sh * .025),
+                              // SizedBox(height: sh * .025),
 
-                              GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          height: 44,
-                                          width: 44,
-                                          decoration: const BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Color(0xff355C3B),
-                                                Color(0xff1E4027),
-                                              ],
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.insights,
-                                            color: Colors.white,
-                                          ),
-                                        ),
+                              // GlassCard(
+                              //   child: Column(
+                              //     crossAxisAlignment: CrossAxisAlignment.start,
+                              //     children: [
+                              //       Row(
+                              //         children: [
+                              //           Container(
+                              //             height: 44,
+                              //             width: 44,
+                              //             decoration: const BoxDecoration(
+                              //               shape: BoxShape.circle,
+                              //               gradient: LinearGradient(
+                              //                 colors: [
+                              //                   Color(0xff355C3B),
+                              //                   Color(0xff1E4027),
+                              //                 ],
+                              //               ),
+                              //             ),
+                              //             child: const Icon(
+                              //               Icons.insights,
+                              //               color: Colors.white,
+                              //             ),
+                              //           ),
 
-                                        SizedBox(width: sw * .04),
+                              //           SizedBox(width: sw * .04),
 
-                                        Expanded(
-                                          child: Text(
-                                            "Today's Progress",
-                                            style: TextStyle(
-                                              fontSize: sw * .05,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
+                              //           Expanded(
+                              //             child: Text(
+                              //               "Today's Progress",
+                              //               style: TextStyle(
+                              //                 fontSize: sw * .05,
+                              //                 fontWeight: FontWeight.bold,
+                              //               ),
+                              //             ),
+                              //           ),
 
-                                        Text(
-                                          "${(mealProgress * 100).toInt()}%",
-                                          style: TextStyle(
-                                            fontSize: sw * .055,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xff355C3B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                              //           Text(
+                              //             "${(mealProgress * 100).toInt()}%",
+                              //             style: TextStyle(
+                              //               fontSize: sw * .055,
+                              //               fontWeight: FontWeight.bold,
+                              //               color: const Color(0xff355C3B),
+                              //             ),
+                              //           ),
+                              //         ],
+                              //       ),
 
-                                    SizedBox(height: sh * .025),
+                              //       SizedBox(height: sh * .025),
 
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: LinearProgressIndicator(
-                                        minHeight: 10,
-                                        value: mealProgress,
-                                        backgroundColor: Colors.grey.shade300,
-                                        valueColor:
-                                            const AlwaysStoppedAnimation(
-                                              Color(0xff355C3B),
-                                            ),
-                                      ),
-                                    ),
+                              //       ClipRRect(
+                              //         borderRadius: BorderRadius.circular(20),
+                              //         child: LinearProgressIndicator(
+                              //           minHeight: 10,
+                              //           value: mealProgress,
+                              //           backgroundColor: Colors.grey.shade300,
+                              //           valueColor:
+                              //               const AlwaysStoppedAnimation(
+                              //                 Color(0xff355C3B),
+                              //               ),
+                              //         ),
+                              //       ),
 
-                                    SizedBox(height: sh * .025),
+                              //       SizedBox(height: sh * .025),
 
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Container(
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                              color: Colors.white.withOpacity(
-                                                .18,
-                                              ),
-                                            ),
-                                            child: Column(
-                                              children: [
-                                                const Icon(
-                                                  Icons.restaurant_menu,
-                                                  color: Color(0xff355C3B),
-                                                ),
+                              //       Row(
+                              //         children: [
+                              //           Expanded(
+                              //             child: Container(
+                              //               padding: const EdgeInsets.all(16),
+                              //               decoration: BoxDecoration(
+                              //                 borderRadius:
+                              //                     BorderRadius.circular(18),
+                              //                 color: Colors.white.withOpacity(
+                              //                   .18,
+                              //                 ),
+                              //               ),
+                              //               child: Column(
+                              //                 children: [
+                              //                   const Icon(
+                              //                     Icons.restaurant_menu,
+                              //                     color: Color(0xff355C3B),
+                              //                   ),
 
-                                                const SizedBox(height: 8),
+                              //                   const SizedBox(height: 8),
 
-                                                const Text(
-                                                  "Diet Plan",
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
+                              //                   const Text(
+                              //                     "Diet Plan",
+                              //                     style: TextStyle(
+                              //                       fontWeight: FontWeight.bold,
+                              //                     ),
+                              //                   ),
 
-                                                const SizedBox(height: 6),
+                              //                   const SizedBox(height: 6),
 
-                                                Text(
-                                                  mealExpired
-                                                      ? "Expired"
-                                                      : "Active",
-                                                  style: TextStyle(
-                                                    color: mealExpired
-                                                        ? Colors.red
-                                                        : Colors.green,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
+                              //                   Text(
+                              //                     mealExpired
+                              //                         ? "Expired"
+                              //                         : "Active",
+                              //                     style: TextStyle(
+                              //                       color: mealExpired
+                              //                           ? Colors.red
+                              //                           : Colors.green,
+                              //                       fontWeight: FontWeight.bold,
+                              //                     ),
+                              //                   ),
+                              //                 ],
+                              //               ),
+                              //             ),
+                              //           ),
 
-                                        SizedBox(width: sw * .03),
+                              //           SizedBox(width: sw * .03),
 
-                                        Expanded(
-                                          child: Container(
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                              color: Colors.white.withOpacity(
-                                                .18,
-                                              ),
-                                            ),
-                                            child: Column(
-                                              children: [
-                                                const Icon(
-                                                  Icons.fitness_center,
-                                                  color: Color(0xff355C3B),
-                                                ),
+                              //           Expanded(
+                              //             child: Container(
+                              //               padding: const EdgeInsets.all(16),
+                              //               decoration: BoxDecoration(
+                              //                 borderRadius:
+                              //                     BorderRadius.circular(18),
+                              //                 color: Colors.white.withOpacity(
+                              //                   .18,
+                              //                 ),
+                              //               ),
+                              //               child: Column(
+                              //                 children: [
+                              //                   const Icon(
+                              //                     Icons.fitness_center,
+                              //                     color: Color(0xff355C3B),
+                              //                   ),
 
-                                                const SizedBox(height: 8),
+                              //                   const SizedBox(height: 8),
 
-                                                const Text(
-                                                  "Workout",
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
+                              //                   const Text(
+                              //                     "Workout",
+                              //                     style: TextStyle(
+                              //                       fontWeight: FontWeight.bold,
+                              //                     ),
+                              //                   ),
 
-                                                const SizedBox(height: 6),
+                              //                   const SizedBox(height: 6),
 
-                                                Text(
-                                                  workoutExists
-                                                      ? "Active"
-                                                      : "Not Generated",
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    color: workoutExists
-                                                        ? Colors.green
-                                                        : Colors.orange,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-
+                              //                   Text(
+                              //                     workoutExists
+                              //                         ? "Active"
+                              //                         : "Not Generated",
+                              //                     textAlign: TextAlign.center,
+                              //                     style: TextStyle(
+                              //                       color: workoutExists
+                              //                           ? Colors.green
+                              //                           : Colors.orange,
+                              //                       fontWeight: FontWeight.bold,
+                              //                     ),
+                              //                   ),
+                              //                 ],
+                              //               ),
+                              //             ),
+                              //           ),
+                              //         ],
+                              //       ),
+                              //     ],
+                              //   ),
+                              // ),
                               SizedBox(height: sh * .03),
 
                               Container(
