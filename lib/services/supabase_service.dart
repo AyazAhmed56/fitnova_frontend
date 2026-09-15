@@ -12,12 +12,24 @@ class SupabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   Future<void> saveUserProfile(UserProfileModel profile) async {
-    // -------------------------------
-    // 1. Save Profile (without goal fields)
-    // -------------------------------
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('User is not authenticated.');
+    }
+
+    final authUid = user.id;
+
+    // IMPORTANT:
+    // profiles.id must always be auth.uid
+    final profileId = authUid;
+
+    // -----------------------------------
+    // 1. Save Profile
+    // -----------------------------------
+
     final profileData = profile.toJson();
 
-    // Remove goal-specific fields
     profileData.remove('goal');
     profileData.remove('target_weight');
     profileData.remove('duration_months');
@@ -34,49 +46,63 @@ class SupabaseService {
     profileData.remove('competition_level');
     profileData.remove('workout_days');
 
-    profileData['id'] = profile.uid;
+    // NEVER use profile.uid here
+    profileData['id'] = profileId;
+
     profileData['updated_at'] = DateTime.now().toIso8601String();
 
     await _supabase.from('profiles').upsert(profileData);
 
-    // -------------------------------
+    // -----------------------------------
     // 2. Save Goal Details
-    // -------------------------------
+    // -----------------------------------
+
     final goalResponse = await _supabase
         .from('goal_details')
-        .upsert({'profile_id': profile.uid, 'goal_name': profile.goal})
+        .upsert({
+          'profile_id': profileId,
+          'goal_name': profile.goal,
+        }, onConflict: 'profile_id')
         .select()
         .single();
 
-    final goalId = goalResponse['id'];
+    final goalId = goalResponse['id'].toString();
 
-    // -------------------------------
-    // 3. Save goal_id inside profile
-    // -------------------------------
+    // -----------------------------------
+    // 3. Link goal to profile
+    // -----------------------------------
+
     await _supabase
         .from('profiles')
         .update({'goal_id': goalId})
-        .eq('id', profile.uid);
+        .eq('id', profileId);
 
-    // -------------------------------
-    // 4. Remove old goal records
-    // -------------------------------
+    // -----------------------------------
+    // 4. Delete previous goal record
+    // -----------------------------------
+
     await Future.wait([
       _supabase.from('lose_weight_goals').delete().eq('goal_id', goalId),
+
       _supabase.from('weight_gain_goals').delete().eq('goal_id', goalId),
+
       _supabase.from('build_muscle_goals').delete().eq('goal_id', goalId),
+
       _supabase.from('strength_power_goals').delete().eq('goal_id', goalId),
+
       _supabase.from('endurance_goals').delete().eq('goal_id', goalId),
+
       _supabase.from('general_fitness_goals').delete().eq('goal_id', goalId),
+
       _supabase
           .from('athletic_performance_goals')
           .delete()
           .eq('goal_id', goalId),
     ]);
 
-    // -------------------------------
-    // 5. Save Selected Goal
-    // -------------------------------
+    // -----------------------------------
+    // 5. Insert selected goal
+    // -----------------------------------
 
     switch (profile.goal) {
       case "Lose Weight":
@@ -147,6 +173,9 @@ class SupabaseService {
           'duration_months': profile.durationMonths,
         });
         break;
+
+      default:
+        throw Exception('Unsupported goal: ${profile.goal}');
     }
   }
 
@@ -403,30 +432,38 @@ class SupabaseService {
     await _supabase.from('profiles').delete().eq('id', uid);
   }
 
-  Future<String> getOrCreateGoalDetails({
-    required String profileId,
-    required String goalName,
-  }) async {
+  Future<String> getOrCreateGoalDetails({required String goalName}) async {
     final client = Supabase.instance.client;
+
+    final user = client.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('User is not authenticated.');
+    }
+
+    final authUid = user.id;
 
     final existing = await client
         .from('goal_details')
         .select('id, goal_name')
-        .eq('profile_id', profileId)
+        .eq('profile_id', authUid)
         .maybeSingle();
 
     if (existing != null) {
+      final goalId = existing['id'].toString();
+
       await client
           .from('goal_details')
           .update({'goal_name': goalName})
-          .eq('id', existing['id']);
+          .eq('id', goalId)
+          .eq('profile_id', authUid);
 
-      return existing['id'].toString();
+      return goalId;
     }
 
     final inserted = await client
         .from('goal_details')
-        .insert({'profile_id': profileId, 'goal_name': goalName})
+        .insert({'profile_id': authUid, 'goal_name': goalName})
         .select('id')
         .single();
 
@@ -440,18 +477,19 @@ class SupabaseService {
   }) async {
     final client = Supabase.instance.client;
 
-    final existing = await client
-        .from(table)
-        .select('id')
-        .eq('goal_id', goalId)
-        .limit(1)
-        .maybeSingle();
+    final user = client.auth.currentUser;
 
-    if (existing != null) {
-      await client.from(table).update(fields).eq('goal_id', goalId);
-    } else {
-      await client.from(table).insert({'goal_id': goalId, ...fields});
+    if (user == null) {
+      throw Exception('User is not authenticated.');
     }
+
+    if (goalId.trim().isEmpty) {
+      throw Exception('Goal ID cannot be empty.');
+    }
+
+    final data = <String, dynamic>{'goal_id': goalId, ...fields};
+
+    await client.from(table).upsert(data, onConflict: 'goal_id');
   }
 
   Future<void> saveMealPlan(String uid, Map<String, dynamic> mealPlan) async {

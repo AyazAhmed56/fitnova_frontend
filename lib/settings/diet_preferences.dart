@@ -63,14 +63,13 @@ class _DietPreferencesScreenState extends State<DietPreferencesScreen> {
       if (data != null) {
         profile = data;
 
-        selectedDiet = List<String>.from(data.dietaryPreferences);
+        selectedDiet = List<String>.from(
+          data.dietaryPreferences,
+        ).where((diet) => diet.trim() != "No Preference").toList();
 
         allergiesController.text = data.allergies;
-
         commentsController.text = data.comments;
-
         mealsController.text = data.mealsPerDay;
-
         budgetController.text = data.budget;
       }
     } catch (e) {
@@ -86,13 +85,16 @@ class _DietPreferencesScreenState extends State<DietPreferencesScreen> {
 
   Future<void> updateDietPreferences() async {
     final user = Supabase.instance.client.auth.currentUser;
+
     if (user == null) return;
 
     setState(() => isSaving = true);
 
     try {
       await _supabaseService.updateProfileFields(user.id, {
-        'dietary_preferences': selectedDiet.join(', '),
+        // Supabase column is TEXT[]
+        'dietary_preferences': selectedDiet,
+
         'allergies': allergiesController.text.trim(),
         'comments': commentsController.text.trim(),
         'meals_per_day': mealsController.text.trim(),
@@ -100,15 +102,18 @@ class _DietPreferencesScreenState extends State<DietPreferencesScreen> {
       });
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Diet preferences updated successfully.'),
           backgroundColor: Color(0xFF3A6F4B),
         ),
       );
+
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update diet preferences.\n$e'),
@@ -116,7 +121,9 @@ class _DietPreferencesScreenState extends State<DietPreferencesScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => isSaving = false);
+      if (mounted) {
+        setState(() => isSaving = false);
+      }
     }
   }
 

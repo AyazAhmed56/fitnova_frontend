@@ -336,7 +336,10 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
 
           competitionLevel = data['competition_level']?.toString() ?? '';
 
-          final performance = data['performance_goals']?.toString() ?? data['performance_goal']?.toString() ?? '';
+          final performance =
+              data['performance_goals']?.toString() ??
+              data['performance_goal']?.toString() ??
+              '';
 
           performanceGoals = performance.isEmpty
               ? []
@@ -422,7 +425,6 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       }
 
       final goalId = await _supabaseService.getOrCreateGoalDetails(
-        profileId: profileId,
         goalName: goal.trim(),
       );
 
