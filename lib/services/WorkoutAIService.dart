@@ -646,20 +646,18 @@ $catalog
 
 For every workout exercise return ONLY:
 catalogName, sets, reps, duration, rest, tempo, difficulty, instructions, precautions, commonMistakes, substituteExercises, tips.
-
 Keep text short:
 instructions: 2-3 short items
 precautions: 0-2 short items
 commonMistakes: 0-2 short items
 tips: 0-2 short items
-
 Every exercise MUST have exactly TWO different substituteExercises. Each substitute contains only catalogName.
-
 Do NOT generate exercise IDs, GIF URLs, body parts, target muscles, secondary muscles, equipment or database instructions. Supabase supplies those.
-
 Warm-up, stretching and cooldown should also be concise.
-
 Every day needs one short scientificEvidence statement based on accepted training principles. Do not invent studies, researchers, statistics or citations.
+For the upper split give atleast 2-3 exercise of each upper body part (chest, back, shoulder, bicep, tricep)
+For the lower split give atleast 2-3 exercise of each lower body part (harmstring, cords and calfs)
+For the cardio split give exercise of body weight cardio, machine cardio (tradmill, elliptical, cycling) and cross fit cardio 
 
 Rest days:
 restDay=true

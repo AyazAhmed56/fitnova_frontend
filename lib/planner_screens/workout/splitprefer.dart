@@ -20,12 +20,27 @@ class _SplitPreferenceState extends State<SplitPreference> {
       'icon': HugeIcons.strokeRoundedDumbbell01,
     },
     {
-      'title': 'Upper / Lower',
+      'title': 'Upper / Lower / Rest',
+      'text': 'Split upper & lower body',
+      'icon': HugeIcons.strokeRoundedBodyArmor,
+    },
+    {
+      'title': 'Upper / Lower / Cardio',
+      'text': 'Split upper & lower body',
+      'icon': HugeIcons.strokeRoundedBodyArmor,
+    },
+    {
+      'title': 'Upper / Cardio / Lower',
       'text': 'Split upper & lower body',
       'icon': HugeIcons.strokeRoundedBodyArmor,
     },
     {
       'title': 'Push / Pull / Legs',
+      'text': 'Advanced split',
+      'icon': HugeIcons.strokeRoundedGymnasticRings,
+    },
+    {
+      'title': 'Legs / Push / Pull',
       'text': 'Advanced split',
       'icon': HugeIcons.strokeRoundedGymnasticRings,
     },

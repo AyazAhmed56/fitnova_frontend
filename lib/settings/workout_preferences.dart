@@ -57,9 +57,11 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
 
   final List<String> splitOptions = [
     "Full Body",
-    "Upper / Lower",
+    "Upper / Lower / Rest",
+    "Upper / Cardio / Lower",
     "Upper / Lower / Cardio",
     "Push / Pull / Legs",
+    "Legs / Push / Pull",
     "Single Muscle",
     "Double Muscle",
     "Bro Split",
