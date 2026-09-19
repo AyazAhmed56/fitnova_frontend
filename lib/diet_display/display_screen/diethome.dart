@@ -4,6 +4,7 @@ import 'package:fitnova/diet_display/display_screen/dailymeal.dart';
 import 'package:fitnova/diet_display/display_screen/haircare_screen.dart';
 import 'package:fitnova/diet_display/display_screen/shoppinglist.dart';
 import 'package:fitnova/diet_display/display_screen/skincare_screen.dart';
+import 'package:fitnova/diet_display/widgets/macro_nutrition_entry.dart';
 import 'package:fitnova/models/user_profile_model.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:flutter/material.dart';
@@ -750,6 +751,63 @@ class _DietHomeState extends State<DietHome> {
                                         Expanded(
                                           child: Text(
                                             "Hair Care",
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_ios_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              SizedBox(height: sh * .03),
+
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => MacroNutritionEntry(),
+                                    ),
+                                  );
+                                },
+                                child: GlassCard(
+                                  padding: EdgeInsets.zero,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      color: Color.fromARGB(255, 1, 53, 17),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.green.withOpacity(.25),
+                                          blurRadius: 15,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: const [
+                                        Icon(
+                                          Icons.face_3,
+                                          color: Colors.white,
+                                          size: 26,
+                                        ),
+                                        SizedBox(width: 16),
+                                        Expanded(
+                                          child: Text(
+                                            "Nutrition Foods",
                                             style: TextStyle(
                                               fontSize: 18,
                                               fontWeight: FontWeight.bold,

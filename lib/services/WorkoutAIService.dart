@@ -55,6 +55,8 @@ class WorkoutAIService {
 
     _validateWorkoutPlan(workoutPlan, catalogMap);
 
+    _generateSubstituteExercises(workoutPlan, catalogMap);
+
     _enrichWorkoutPlan(workoutPlan, catalogMap);
 
     return workoutPlan;
@@ -352,6 +354,119 @@ class WorkoutAIService {
     return cleaned.trim();
   }
 
+  void _generateSubstituteExercises(
+    Map<String, dynamic> plan,
+    Map<String, Map<String, String>> catalog,
+  ) {
+    final days = plan['days'];
+
+    if (days is! Map) return;
+
+    for (final dayEntry in days.entries) {
+      final day = dayEntry.value;
+
+      if (day is! Map) continue;
+
+      final workout = day['workout'];
+
+      if (workout is! List) continue;
+
+      for (final rawExercise in workout) {
+        if (rawExercise is! Map) continue;
+
+        final mainName = rawExercise['catalogName']?.toString().trim() ?? '';
+
+        if (mainName.isEmpty) continue;
+
+        final mainData = catalog[mainName];
+
+        if (mainData == null) continue;
+
+        final mainTargetMuscles = _decodeList(mainData['target_muscles']);
+
+        final mainBodyParts = _decodeList(mainData['body_parts']);
+
+        final mainEquipment = _decodeList(mainData['equipments']);
+
+        final candidates = <Map<String, String>>[];
+
+        for (final entry in catalog.entries) {
+          final candidateName = entry.key;
+          final candidate = entry.value;
+
+          // Never use the same exercise.
+          if (candidateName == mainName) continue;
+
+          final candidateTargetMuscles = _decodeList(
+            candidate['target_muscles'],
+          );
+
+          final candidateBodyParts = _decodeList(candidate['body_parts']);
+
+          final candidateEquipment = _decodeList(candidate['equipments']);
+
+          int score = 0;
+
+          // Same target muscle = strong match.
+          if (_hasOverlap(mainTargetMuscles, candidateTargetMuscles)) {
+            score += 5;
+          }
+
+          // Same body part.
+          if (_hasOverlap(mainBodyParts, candidateBodyParts)) {
+            score += 3;
+          }
+
+          // Similar equipment.
+          if (_hasOverlap(mainEquipment, candidateEquipment)) {
+            score += 1;
+          }
+
+          if (score > 0) {
+            candidates.add({
+              'catalogName': candidateName,
+              '_score': score.toString(),
+            });
+          }
+        }
+
+        // Highest-scoring alternatives first.
+        candidates.sort((a, b) {
+          final scoreA = int.tryParse(a['_score'] ?? '0') ?? 0;
+          final scoreB = int.tryParse(b['_score'] ?? '0') ?? 0;
+
+          return scoreB.compareTo(scoreA);
+        });
+
+        final selected = <Map<String, String>>[];
+
+        for (final candidate in candidates) {
+          if (selected.length >= 2) break;
+
+          selected.add({'catalogName': candidate['catalogName']!});
+        }
+
+        rawExercise['substituteExercises'] = selected;
+      }
+    }
+  }
+
+  bool _hasOverlap(List<String> first, List<String> second) {
+    if (first.isEmpty || second.isEmpty) {
+      return false;
+    }
+
+    final firstSet = first.map((e) => e.trim().toLowerCase()).toSet();
+
+    for (final value in second) {
+      if (firstSet.contains(value.trim().toLowerCase())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   void _validateWorkoutPlan(
     Map<String, dynamic> plan,
     Map<String, Map<String, String>> catalog,
@@ -420,56 +535,6 @@ class WorkoutAIService {
             '$catalogName\n'
             'Day: $dayName',
           );
-        }
-
-        final alternatives = exercise['substituteExercises'];
-
-        if (alternatives is! List || alternatives.length != 2) {
-          throw Exception(
-            '$catalogName on $dayName must have '
-            'exactly two alternatives.',
-          );
-        }
-
-        final alternativeNames = <String>{};
-
-        for (final alternative in alternatives) {
-          if (alternative is! Map) {
-            throw Exception('Invalid alternative on $dayName.');
-          }
-
-          final alternativeName =
-              alternative['catalogName']?.toString().trim() ?? '';
-
-          if (alternativeName.isEmpty) {
-            throw Exception(
-              'Alternative is missing catalogName '
-              'on $dayName.',
-            );
-          }
-
-          if (!catalog.containsKey(alternativeName)) {
-            throw Exception(
-              'Invalid alternative exercise:\n'
-              '$alternativeName\n'
-              'Day: $dayName',
-            );
-          }
-
-          if (alternativeName == catalogName) {
-            throw Exception(
-              'Alternative cannot be the same '
-              'as the main exercise:\n'
-              '$catalogName',
-            );
-          }
-
-          if (!alternativeNames.add(alternativeName)) {
-            throw Exception(
-              'The two alternatives must be different:\n'
-              '$catalogName',
-            );
-          }
         }
       }
     }
@@ -651,8 +716,13 @@ instructions: 2-3 short items
 precautions: 0-2 short items
 commonMistakes: 0-2 short items
 tips: 0-2 short items
-Every exercise MUST have exactly TWO different substituteExercises. Each substitute contains only catalogName.
-Do NOT generate exercise IDs, GIF URLs, body parts, target muscles, secondary muscles, equipment or database instructions. Supabase supplies those.
+
+DO NOT generate substituteExercises.
+For every exercise, return:
+"substituteExercises": []
+The application will automatically select exactly two substitute exercises
+
+from the Supabase exercise catalog after Gemini responds.Do NOT generate exercise IDs, GIF URLs, body parts, target muscles, secondary muscles, equipment or database instructions. Supabase supplies those.
 Warm-up, stretching and cooldown should also be concise.
 Every day needs one short scientificEvidence statement based on accepted training principles. Do not invent studies, researchers, statistics or citations.
 For the upper split give atleast 2-3 exercise of each upper body part (chest, back, shoulder, bicep, tricep)
@@ -710,14 +780,7 @@ Use this compact structure:
       "precautions": [],
       "commonMistakes": [],
 
-      "substituteExercises": [
-        {
-          "catalogName": "",
-        },
-        {
-          "catalogName": "",
-        }
-      ],
+      "substituteExercises": []
 
       "tips": []
     }
@@ -753,8 +816,8 @@ Before returning, verify:
 - workout days match the user's selected days
 - rest days have workout=[]
 - every catalogName exists exactly in the catalog
-- every exercise has exactly 2 different alternatives
-- every alternative exists exactly in the catalog
+- substituteExercises must initially be an empty array
+- all catalogName values must exist exactly in the catalog
 - no database/GIF information is invented
 - JSON is complete and valid
 
