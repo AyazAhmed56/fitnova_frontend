@@ -1,6 +1,6 @@
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/dashboard.dart';
-import 'package:fitnova/diet_display/display_screen/diethome.dart';
+import 'package:fitnova/diet_display/display_screen/diet_home.dart';
 import 'package:fitnova/settings/settings.dart';
 import 'package:fitnova/workout_display/display_screen/workout_home.dart';
 import 'package:flutter/material.dart';

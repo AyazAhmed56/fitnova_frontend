@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
-import 'package:fitnova/diet_display/display_screen/diethome.dart';
+import 'package:fitnova/diet_display/display_screen/diet_home.dart';
 import 'package:fitnova/models/user_profile_model.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:fitnova/workout_display/display_screen/workout_home.dart';

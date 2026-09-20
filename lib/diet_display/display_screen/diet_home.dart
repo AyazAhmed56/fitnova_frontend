@@ -20,30 +20,108 @@ class DietHome extends StatefulWidget {
 }
 
 class _DietHomeState extends State<DietHome> {
-  bool generateMealPlan = false;
-
   static const Color darkGreen = Color(0xff063D1B);
   static const Color primaryGreen = Color(0xff075A25);
   static const Color textGreen = Color(0xff214A2D);
 
-  Future<UserProfileModel?> _loadProfile() async {
-    final user = Supabase.instance.client.auth.currentUser;
+  final SupabaseService _supabase = SupabaseService();
 
-    if (user == null) return null;
+  UserProfileModel? _profile;
+  Map<String, dynamic>? _mealPlan;
 
-    return SupabaseService().getUserProfile(user.id);
+  bool _pageLoading = true;
+  bool generateMealPlan = false;
+  String? _pageError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPageData();
   }
 
-  Future<Map<String, dynamic>?> _loadMealPlan() async {
+  Future<void> _loadPageData() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _pageLoading = false;
+          _pageError = 'User is not logged in.';
+        });
+        return;
+      }
+
+      final results = await Future.wait([
+        _supabase.getUserProfile(user.id),
+        _supabase.getMealPlan(user.id),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _profile = results[0] as UserProfileModel?;
+        _mealPlan = results[1] as Map<String, dynamic>?;
+        _pageLoading = false;
+        _pageError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _pageLoading = false;
+        _pageError = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _generateNewMealPlan() async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    if (user == null) return null;
+    if (user == null) return;
 
-    return SupabaseService().getMealPlan(user.id);
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() {
+      generateMealPlan = true;
+    });
+
+    try {
+      await _supabase.generateAndSaveMealPlan(user.id);
+
+      final newMealPlan = await _supabase.getMealPlan(user.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _mealPlan = newMealPlan;
+      });
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('New meal plan generated successfully'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        generateMealPlan = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Prevent the entire DietHome layout from being resized when the
+    // browser/mobile keyboard opens. This keeps the TextField mounted
+    // and prevents focus/cursor from being lost.
     return Container(
       decoration: const BoxDecoration(
         image: DecorationImage(
@@ -55,16 +133,13 @@ class _DietHomeState extends State<DietHome> {
         filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
         child: Scaffold(
           backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: false,
 
-          // ==========================================================
-          // APP BAR
-          // ==========================================================
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
             centerTitle: true,
             toolbarHeight: 52,
-
             title: const Text(
               "Dashboard",
               style: TextStyle(
@@ -75,287 +150,23 @@ class _DietHomeState extends State<DietHome> {
             ),
           ),
 
-          // ==========================================================
-          // BODY
-          // ==========================================================
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final sw = constraints.maxWidth;
-              final sh = constraints.maxHeight;
+          body: _buildBody(context),
 
-              return FutureBuilder<UserProfileModel?>(
-                future: _loadProfile(),
-
-                builder: (context, profileSnapshot) {
-                  if (profileSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (!profileSnapshot.hasData) {
-                    return const Center(child: Text("Profile not found"));
-                  }
-
-                  return FutureBuilder<Map<String, dynamic>?>(
-                    future: _loadMealPlan(),
-
-                    builder: (context, mealSnapshot) {
-                      if (mealSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (generateMealPlan) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (!mealSnapshot.hasData || mealSnapshot.data == null) {
-                        return const Center(
-                          child: Text("No Meal Plan Generated Yet"),
-                        );
-                      }
-
-                      final mealPlan = mealSnapshot.data!;
-
-                      final supabase = SupabaseService();
-
-                      final bool planExpired = supabase.isPlanExpired(mealPlan);
-
-                      final String remainingTime = supabase.formatRemainingTime(
-                        supabase.getRemainingTime(mealPlan),
-                      );
-
-                      final double progress = supabase.getPlanProgress(
-                        mealPlan,
-                      );
-
-                      // ==================================================
-                      // EXPIRED PLAN
-                      // ==================================================
-
-                      if (planExpired) {
-                        return _buildExpiredPlan(context, sw, sh);
-                      }
-
-                      // ==================================================
-                      // MEAL PLAN DATA
-                      // ==================================================
-
-                      final days = Map<String, dynamic>.from(
-                        mealPlan["days"] ?? {},
-                      );
-
-                      final day = Map<String, dynamic>.from(days["Day1"] ?? {});
-
-                      final dailyTarget = Map<String, dynamic>.from(
-                        day["dailyTarget"] ?? {},
-                      );
-
-                      // ==================================================
-                      // MAIN CONTENT
-                      // ==================================================
-
-                      return SafeArea(
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-
-                          padding: EdgeInsets.only(
-                            left: sw * .045,
-                            right: sw * .045,
-                            top: 4,
-                            bottom: 28,
-                          ),
-
-                          child: Column(
-                            children: [
-                              // =================================================
-                              // MEAL PLAN STATUS
-                              // =================================================
-                              _buildMealPlanStatus(
-                                remainingTime: remainingTime,
-                                progress: progress,
-                              ),
-
-                              SizedBox(height: sh * .018),
-
-                              // =================================================
-                              // NUTRITION SEARCH
-                              // =================================================
-                              GlassCard(
-                                padding: const EdgeInsets.all(14),
-                                borderRadius: BorderRadius.circular(22),
-
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                                  children: [
-                                    const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.search_rounded,
-                                          size: 21,
-                                          color: primaryGreen,
-                                        ),
-
-                                        SizedBox(width: 8),
-
-                                        Text(
-                                          "Nutrition Search",
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                            color: textGreen,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 5),
-
-                                    Text(
-                                      "Find foods rich in protein, calcium, iron and more",
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        height: 1.25,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 11),
-
-                                    NutritionSearchBar(
-                                      onSearch: (query) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => MacroNutritionPage(
-                                              initialQuery: query,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              SizedBox(height: sh * .018),
-
-                              // =================================================
-                              // VIEW MEAL PLAN
-                              // =================================================
-                              ActionButton(
-                                icon: Icons.restaurant_menu_rounded,
-                                title: "View 2-Day Meal Plan",
-
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const DailyMeal(),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 10),
-
-                              // =================================================
-                              // SHOPPING LIST
-                              // =================================================
-                              ActionButton(
-                                icon: Icons.shopping_cart_outlined,
-                                title: "Shopping List",
-
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const ShoppingList(),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              SizedBox(height: sh * .018),
-
-                              // =================================================
-                              // SKIN CARE
-                              // =================================================
-                              ActionButton(
-                                icon: Icons.face_retouching_natural_rounded,
-                                title: "Skin Care",
-
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const SkinCareScreen(),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 10),
-
-                              // =================================================
-                              // HAIR CARE
-                              // =================================================
-                              ActionButton(
-                                icon: Icons.face_3_rounded,
-                                title: "Hair Care",
-
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const HairCareScreen(),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              SizedBox(height: sh * .022),
-
-                              // =================================================
-                              // DAILY TARGETS
-                              // NOW AT THE VERY BOTTOM
-                              // =================================================
-                              _buildStatsGrid(dailyTarget: dailyTarget),
-
-                              const SizedBox(height: 12),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          ),
-
-          // ==========================================================
-          // AI COACH
-          // ==========================================================
           floatingActionButton: FloatingActionButton(
             heroTag: "diet_ai_coach_fab",
-
             backgroundColor: const Color(0xffA8DB69),
-
             elevation: 5,
-
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(50),
             ),
-
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AiCoachScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const AiCoachScreen(),
+                ),
               );
             },
-
             child: const Icon(
               Icons.smart_toy_rounded,
               color: Color(0xff1E4027),
@@ -366,9 +177,235 @@ class _DietHomeState extends State<DietHome> {
     );
   }
 
-  // ================================================================
-  // MEAL PLAN STATUS
-  // ================================================================
+  Widget _buildBody(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final sw = size.width;
+    final sh = size.height;
+
+    if (_pageLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_pageError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _pageError!,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    if (_profile == null) {
+      return const Center(
+        child: Text("Profile not found"),
+      );
+    }
+
+    if (generateMealPlan) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_mealPlan == null) {
+      return const Center(
+        child: Text("No Meal Plan Generated Yet"),
+      );
+    }
+
+    final mealPlan = _mealPlan!;
+
+    final bool planExpired =
+        _supabase.isPlanExpired(mealPlan);
+
+    final String remainingTime =
+        _supabase.formatRemainingTime(
+      _supabase.getRemainingTime(mealPlan),
+    );
+
+    final double progress =
+        _supabase.getPlanProgress(mealPlan);
+
+    if (planExpired) {
+      return _buildExpiredPlan(
+        context,
+        sw,
+        sh,
+      );
+    }
+
+    final days = Map<String, dynamic>.from(
+      mealPlan["days"] ?? {},
+    );
+
+    final day = Map<String, dynamic>.from(
+      days["Day1"] ?? {},
+    );
+
+    final dailyTarget = Map<String, dynamic>.from(
+      day["dailyTarget"] ?? {},
+    );
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        keyboardDismissBehavior:
+            ScrollViewKeyboardDismissBehavior.manual,
+        padding: EdgeInsets.only(
+          left: sw * .045,
+          right: sw * .045,
+          top: 4,
+          bottom: 28,
+        ),
+        child: Column(
+          children: [
+            _buildMealPlanStatus(
+              remainingTime: remainingTime,
+              progress: progress,
+            ),
+
+            SizedBox(height: sh * .018),
+
+            // ==========================================================
+            // NUTRITION SEARCH
+            // ==========================================================
+
+            GlassCard(
+              padding: const EdgeInsets.all(14),
+              borderRadius: BorderRadius.circular(22),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.search_rounded,
+                        size: 21,
+                        color: primaryGreen,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        "Nutrition Search",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: textGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    "Find foods rich in protein, calcium, iron and more",
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.25,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+
+                  const SizedBox(height: 11),
+
+                  // IMPORTANT:
+                  // This widget owns its controller and focus node.
+                  // Typing here does NOT rebuild DietHome.
+                  NutritionSearchBar(
+                    onSearch: (query) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              MacroNutritionPage(
+                            initialQuery: query,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: sh * .018),
+
+            ActionButton(
+              icon: Icons.restaurant_menu_rounded,
+              title: "View 2-Day Meal Plan",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DailyMeal(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            ActionButton(
+              icon: Icons.shopping_cart_outlined,
+              title: "Shopping List",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ShoppingList(),
+                  ),
+                );
+              },
+            ),
+
+            SizedBox(height: sh * .018),
+
+            ActionButton(
+              icon: Icons.face_retouching_natural_rounded,
+              title: "Skin Care",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SkinCareScreen(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            ActionButton(
+              icon: Icons.face_3_rounded,
+              title: "Hair Care",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HairCareScreen(),
+                  ),
+                );
+              },
+            ),
+
+            SizedBox(height: sh * .022),
+
+            _buildStatsGrid(
+              dailyTarget: dailyTarget,
+            ),
+
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildMealPlanStatus({
     required String remainingTime,

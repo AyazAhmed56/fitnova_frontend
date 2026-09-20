@@ -1,238 +1,377 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-
-import '../services/nutrition_service.dart';
 
 class NutritionSearchBar extends StatefulWidget {
   final void Function(String query) onSearch;
 
-  const NutritionSearchBar({super.key, required this.onSearch});
+  const NutritionSearchBar({
+    super.key,
+    required this.onSearch,
+  });
 
   @override
-  State<NutritionSearchBar> createState() => _NutritionSearchBarState();
+  State<NutritionSearchBar> createState() =>
+      _NutritionSearchBarState();
 }
 
-class _NutritionSearchBarState extends State<NutritionSearchBar> {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+class _NutritionSearchBarState
+    extends State<NutritionSearchBar> {
+  final TextEditingController _controller =
+      TextEditingController();
 
-  final NutritionService _service = NutritionService();
+  final FocusNode _focusNode =
+      FocusNode();
 
-  Timer? _debounce;
-
-  List<Map<String, dynamic>> _suggestions = [];
-  bool _loadingSuggestions = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _focusNode.addListener(_onFocusChanged);
-
-    _loadSuggestions();
-  }
+  // These are local suggestions.
+  //
+  // IMPORTANT:
+  // We intentionally do not call the backend while the user is typing.
+  // This prevents asynchronous rebuilds/network activity from affecting
+  // the TextField on DietHome.
+  static const List<String> _nutrients = [
+    'Protein',
+    'Calcium',
+    'Iron',
+    'Fiber',
+    'Potassium',
+    'Magnesium',
+    'Zinc',
+    'Vitamin A',
+    'Vitamin C',
+    'Vitamin D',
+    'Vitamin B12',
+    'Folate',
+    'Omega 3',
+    'Healthy Fats',
+    'Carbohydrates',
+  ];
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _controller.dispose();
-    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
-
     super.dispose();
-  }
-
-  void _onFocusChanged() {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  Future<void> _loadSuggestions() async {
-    if (mounted) {
-      setState(() {
-        _loadingSuggestions = true;
-      });
-    }
-
-    try {
-      final result = await _service.getSuggestions();
-
-      if (!mounted) return;
-
-      setState(() {
-        _suggestions = result;
-        _loadingSuggestions = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _loadingSuggestions = false;
-      });
-    }
-  }
-
-  void _onChanged(String value) {
-    _debounce?.cancel();
-
-    _debounce = Timer(const Duration(milliseconds: 250), () {
-      if (!mounted) return;
-
-      setState(() {});
-    });
   }
 
   void _submit(String value) {
     final query = value.trim();
 
-    if (query.isEmpty) return;
+    if (query.isEmpty) {
+      return;
+    }
 
     _focusNode.unfocus();
 
     widget.onSearch(query);
   }
 
-  void _clearSearch() {
+  void _clear() {
     _controller.clear();
 
-    setState(() {});
-
+    // Keep the keyboard open after clearing.
     _focusNode.requestFocus();
   }
 
-  List<Map<String, dynamic>> get _filteredSuggestions {
-    final query = _controller.text.trim().toLowerCase();
+  List<String> _filteredSuggestions(
+    String query,
+  ) {
+    final cleaned =
+        query.trim().toLowerCase();
 
-    if (query.isEmpty) {
-      return _suggestions.take(6).toList();
+    if (cleaned.isEmpty) {
+      return _nutrients
+          .take(6)
+          .toList();
     }
 
-    return _suggestions
-        .where((item) {
-          final displayName =
-              item['display_name']?.toString().toLowerCase() ?? '';
-
-          return displayName.contains(query);
-        })
+    return _nutrients
+        .where(
+          (item) => item
+              .toLowerCase()
+              .contains(cleaned),
+        )
         .take(6)
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final suggestions = _filteredSuggestions;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        // =============================================================
+        // SEARCH FIELD
+        // =============================================================
 
-    /*
-      IMPORTANT:
-      NutritionSearchBar can be inserted into any part of Diet Home.
-      Material ensures TextField, ListTile, IconButton, etc.
-      always have a Material ancestor.
-    */
-    return Material(
-      type: MaterialType.transparency,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _controller,
-            focusNode: _focusNode,
-            textInputAction: TextInputAction.search,
-            onChanged: _onChanged,
-            onSubmitted: _submit,
-            decoration: InputDecoration(
-              hintText: 'Search calcium, protein, iron...',
-              prefixIcon: const Icon(Icons.search),
+        TextField(
+          controller: _controller,
+          focusNode: _focusNode,
 
-              suffixIcon: _controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear',
-                      icon: const Icon(Icons.close),
-                      onPressed: _clearSearch,
-                    ),
+          textInputAction:
+              TextInputAction.search,
 
-              filled: true,
+          keyboardType:
+              TextInputType.text,
 
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
+          autocorrect: false,
 
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
+          enableSuggestions: false,
 
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+          onSubmitted: _submit,
+
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Color(0xff26352A),
+          ),
+
+          decoration:
+              InputDecoration(
+            hintText:
+                'Search calcium, protein, iron...',
+
+            hintStyle: TextStyle(
+              fontSize: 12.5,
+              color: Colors.grey.shade600,
+            ),
+
+            prefixIcon:
+                const Icon(
+              Icons.search_rounded,
+              size: 19,
+              color: Color(0xff315C3C),
+            ),
+
+            suffixIcon:
+                ValueListenableBuilder<
+                    TextEditingValue>(
+              valueListenable:
+                  _controller,
+
+              builder:
+                  (context, value, child) {
+                if (value.text.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return IconButton(
+                  tooltip: 'Clear',
+                  onPressed: _clear,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                  ),
+                  color:
+                      const Color(0xff315C3C),
+                );
+              },
+            ),
+
+            filled: true,
+
+            fillColor:
+                Colors.white.withOpacity(.72),
+
+            contentPadding:
+                const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 15,
+            ),
+
+            border:
+                OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(16),
+              borderSide:
+                  BorderSide.none,
+            ),
+
+            enabledBorder:
+                OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(16),
+              borderSide:
+                  BorderSide.none,
+            ),
+
+            focusedBorder:
+                OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(16),
+              borderSide:
+                  const BorderSide(
+                color: Color(0xff6A9270),
+                width: 1,
               ),
             ),
           ),
+        ),
 
-          if (_focusNode.hasFocus &&
-              !_loadingSuggestions &&
-              suggestions.isNotEmpty)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(top: 6),
+        // =============================================================
+        // LOCAL SUGGESTIONS
+        // =============================================================
 
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(14),
+        ValueListenableBuilder<
+            TextEditingValue>(
+          valueListenable:
+              _controller,
+
+          builder:
+              (context, value, child) {
+            final query =
+                value.text.trim();
+
+            final suggestions =
+                _filteredSuggestions(query);
+
+            if (suggestions.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            // Do not show the dropdown immediately when the field is
+            // completely empty. It will appear as soon as the user
+            // types a character.
+            if (query.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Container(
+              margin:
+                  const EdgeInsets.only(
+                top: 6,
+              ),
+
+              constraints:
+                  const BoxConstraints(
+                maxHeight: 250,
+              ),
+
+              decoration:
+                  BoxDecoration(
+                color: Colors.white
+                    .withOpacity(.96),
+
+                borderRadius:
+                    BorderRadius.circular(14),
+
+                border: Border.all(
+                  color: Colors.white,
+                ),
 
                 boxShadow: const [
                   BoxShadow(
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                    color: Color(0x18000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                    color:
+                        Color(0x18000000),
                   ),
                 ],
               ),
 
-              child: Material(
-                color: Colors.transparent,
+              child:
+                  ListView.separated(
+                shrinkWrap: true,
 
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-
-                  children: suggestions.map((item) {
-                    final name = item['display_name']?.toString() ?? '';
-
-                    final unit = item['unit']?.toString() ?? '';
-
-                    return ListTile(
-                      dense: true,
-
-                      leading: const Icon(Icons.restaurant_menu_outlined),
-
-                      title: Text(
-                        name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-
-                      subtitle: Text(
-                        unit.isEmpty
-                            ? 'Find foods rich in $name'
-                            : 'Find foods rich in $name ($unit)',
-                      ),
-
-                      onTap: () {
-                        _controller.text = name;
-
-                        setState(() {});
-
-                        _submit(name);
-                      },
-                    );
-                  }).toList(),
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical: 5,
                 ),
+
+                itemCount:
+                    suggestions.length,
+
+                separatorBuilder:
+                    (_, __) =>
+                        Divider(
+                  height: 1,
+                  color:
+                      Colors.grey.shade200,
+                ),
+
+                itemBuilder:
+                    (context, index) {
+                  final nutrient =
+                      suggestions[index];
+
+                  return ListTile(
+                    dense: true,
+
+                    contentPadding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 14,
+                    ),
+
+                    leading:
+                        Container(
+                      height: 30,
+                      width: 30,
+
+                      decoration:
+                          const BoxDecoration(
+                        color:
+                            Color(0xffEDF5EE),
+                        shape:
+                            BoxShape.circle,
+                      ),
+
+                      child:
+                          const Icon(
+                        Icons
+                            .restaurant_rounded,
+                        size: 16,
+                        color:
+                            Color(0xff075D27),
+                      ),
+                    ),
+
+                    title: Text(
+                      nutrient,
+
+                      style:
+                          const TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            FontWeight.w600,
+                        color:
+                            Color(0xff24382A),
+                      ),
+                    ),
+
+                    trailing:
+                        const Icon(
+                      Icons
+                          .arrow_forward_ios_rounded,
+                      size: 12,
+                      color:
+                          Color(0xff6B806F),
+                    ),
+
+                    onTap: () {
+                      _controller.text =
+                          nutrient;
+
+                      _controller.selection =
+                          TextSelection
+                              .fromPosition(
+                        TextPosition(
+                          offset:
+                              nutrient.length,
+                        ),
+                      );
+
+                      _submit(
+                        nutrient,
+                      );
+                    },
+                  );
+                },
               ),
-            ),
-        ],
-      ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
