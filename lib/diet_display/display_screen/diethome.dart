@@ -1,10 +1,12 @@
 import 'dart:ui';
+
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/diet_display/display_screen/dailymeal.dart';
 import 'package:fitnova/diet_display/display_screen/haircare_screen.dart';
+import 'package:fitnova/diet_display/display_screen/macro_nutrition_page.dart';
 import 'package:fitnova/diet_display/display_screen/shoppinglist.dart';
 import 'package:fitnova/diet_display/display_screen/skincare_screen.dart';
-import 'package:fitnova/diet_display/widgets/macro_nutrition_entry.dart';
+import 'package:fitnova/diet_display/widgets/nutrition_search_bar.dart';
 import 'package:fitnova/models/user_profile_model.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:flutter/material.dart';
@@ -20,15 +22,23 @@ class DietHome extends StatefulWidget {
 class _DietHomeState extends State<DietHome> {
   bool generateMealPlan = false;
 
+  static const Color darkGreen = Color(0xff063D1B);
+  static const Color primaryGreen = Color(0xff075A25);
+  static const Color textGreen = Color(0xff214A2D);
+
   Future<UserProfileModel?> _loadProfile() async {
     final user = Supabase.instance.client.auth.currentUser;
+
     if (user == null) return null;
+
     return SupabaseService().getUserProfile(user.id);
   }
 
   Future<Map<String, dynamic>?> _loadMealPlan() async {
     final user = Supabase.instance.client.auth.currentUser;
+
     if (user == null) return null;
+
     return SupabaseService().getMealPlan(user.id);
   }
 
@@ -41,28 +51,33 @@ class _DietHomeState extends State<DietHome> {
           fit: BoxFit.cover,
         ),
       ),
-
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-
         child: Scaffold(
           backgroundColor: Colors.transparent,
 
+          // ==========================================================
+          // APP BAR
+          // ==========================================================
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
             centerTitle: true,
+            toolbarHeight: 52,
 
             title: const Text(
               "Dashboard",
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 21,
                 fontWeight: FontWeight.w700,
                 color: Color(0xff14361E),
               ),
             ),
           ),
 
+          // ==========================================================
+          // BODY
+          // ==========================================================
           body: LayoutBuilder(
             builder: (context, constraints) {
               final sw = constraints.maxWidth;
@@ -114,178 +129,17 @@ class _DietHomeState extends State<DietHome> {
                         mealPlan,
                       );
 
-                      // if (planExpired) {
-                      //   return const Center(child: Text("Meal Plan Expired"));
-                      // }
+                      // ==================================================
+                      // EXPIRED PLAN
+                      // ==================================================
 
                       if (planExpired) {
-                        return SafeArea(
-                          child: Padding(
-                            padding: EdgeInsets.all(sw * .06),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.fitness_center_rounded,
-                                    size: sw * .22,
-                                    color: Colors.orange,
-                                  ),
-
-                                  SizedBox(height: sh * .03),
-
-                                  Text(
-                                    "Meal Plan Expired",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: sw * .065,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-
-                                  SizedBox(height: sh * .018),
-
-                                  Text(
-                                    "Your meal plan has completed its 2-day diet cycle.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: sw * .042,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                  ),
-
-                                  SizedBox(height: sh * .012),
-
-                                  Text(
-                                    "Generate a fresh meal plan based on your latest fitness progress to continue improving safely and effectively.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: sw * .038,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-
-                                  SizedBox(height: sh * .05),
-
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: sh * .065,
-                                    child: ElevatedButton.icon(
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text("Generate New Meal"),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF3A6F4B,
-                                        ),
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: generateMealPlan
-                                          ? null
-                                          : () async {
-                                              final confirm =
-                                                  await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (context) {
-                                                      return AlertDialog(
-                                                        title: const Text(
-                                                          "Generate New Plan",
-                                                        ),
-
-                                                        content: const Text(
-                                                          "This will replace your current meal plan. Continue?",
-                                                        ),
-
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () {
-                                                              Navigator.pop(
-                                                                context,
-                                                                false,
-                                                              );
-                                                            },
-
-                                                            child: const Text(
-                                                              "Cancel",
-                                                            ),
-                                                          ),
-
-                                                          ElevatedButton(
-                                                            onPressed: () {
-                                                              Navigator.pop(
-                                                                context,
-                                                                true,
-                                                              );
-                                                            },
-
-                                                            child: const Text(
-                                                              "Generate",
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      );
-                                                    },
-                                                  );
-
-                                              if (confirm != true) return;
-
-                                              final messenger =
-                                                  ScaffoldMessenger.of(context);
-
-                                              try {
-                                                setState(() {
-                                                  generateMealPlan = true;
-                                                });
-
-                                                final user = Supabase
-                                                    .instance
-                                                    .client
-                                                    .auth
-                                                    .currentUser;
-
-                                                if (user == null) return null;
-
-                                                await SupabaseService()
-                                                    .generateAndSaveMealPlan(
-                                                      user.id,
-                                                    );
-
-                                                if (mounted) {
-                                                  setState(() {});
-                                                }
-
-                                                if (!mounted) return;
-
-                                                messenger.showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      "New meal plan generated successfully",
-                                                    ),
-                                                  ),
-                                                );
-                                              } catch (e) {
-                                                if (!mounted) return;
-
-                                                messenger.showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(e.toString()),
-                                                  ),
-                                                );
-                                              } finally {
-                                                if (mounted) {
-                                                  setState(() {
-                                                    generateMealPlan = false;
-                                                  });
-                                                }
-                                              }
-                                            },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
+                        return _buildExpiredPlan(context, sw, sh);
                       }
+
+                      // ==================================================
+                      // MEAL PLAN DATA
+                      // ==================================================
 
                       final days = Map<String, dynamic>.from(
                         mealPlan["days"] ?? {},
@@ -297,198 +151,103 @@ class _DietHomeState extends State<DietHome> {
                         day["dailyTarget"] ?? {},
                       );
 
+                      // ==================================================
+                      // MAIN CONTENT
+                      // ==================================================
+
                       return SafeArea(
                         child: SingleChildScrollView(
                           physics: const BouncingScrollPhysics(),
 
-                          padding: EdgeInsets.symmetric(
-                            horizontal: sw * .05,
-                            vertical: 10,
+                          padding: EdgeInsets.only(
+                            left: sw * .045,
+                            right: sw * .045,
+                            top: 4,
+                            bottom: 28,
                           ),
 
                           child: Column(
                             children: [
-                              SizedBox(height: sh * .025),
+                              // =================================================
+                              // MEAL PLAN STATUS
+                              // =================================================
+                              _buildMealPlanStatus(
+                                remainingTime: remainingTime,
+                                progress: progress,
+                              ),
 
+                              SizedBox(height: sh * .018),
+
+                              // =================================================
+                              // NUTRITION SEARCH
+                              // =================================================
                               GlassCard(
-                                padding: const EdgeInsets.all(22),
+                                padding: const EdgeInsets.all(14),
+                                borderRadius: BorderRadius.circular(22),
 
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
 
                                   children: [
-                                    Row(
+                                    const Row(
                                       children: [
-                                        Container(
-                                          height: 40,
-                                          width: 40,
-
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: Color.fromARGB(
-                                              255,
-                                              1,
-                                              53,
-                                              17,
-                                            ),
-
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.green.withOpacity(
-                                                  .25,
-                                                ),
-                                                blurRadius: 18,
-                                              ),
-                                            ],
-                                          ),
-
-                                          child: const Icon(
-                                            Icons.timer,
-                                            color: Colors.white,
-                                            size: 25,
-                                          ),
+                                        Icon(
+                                          Icons.search_rounded,
+                                          size: 21,
+                                          color: primaryGreen,
                                         ),
 
-                                        const SizedBox(width: 18),
-
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-
-                                            children: [
-                                              const Text(
-                                                "Meal Plan",
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xff2D5B37),
-                                                ),
-                                              ),
-
-                                              const SizedBox(height: 10),
-
-                                              RichText(
-                                                text: TextSpan(
-                                                  style: TextStyle(
-                                                    fontSize: sw * .035,
-                                                    color: Colors.black87,
-                                                  ),
-
-                                                  children: [
-                                                    const TextSpan(
-                                                      text: "Plan expires in ",
-                                                    ),
-
-                                                    TextSpan(
-                                                      text: remainingTime,
-                                                      style: const TextStyle(
-                                                        color: Color(
-                                                          0xff4E7A42,
-                                                        ),
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                        SizedBox(width: 8),
 
                                         Text(
-                                          "${(progress * 100).toInt()}%",
+                                          "Nutrition Search",
                                           style: TextStyle(
-                                            fontSize: sw * .055,
-                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: textGreen,
                                           ),
                                         ),
                                       ],
                                     ),
 
-                                    SizedBox(height: sh * .025),
+                                    const SizedBox(height: 5),
 
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(50),
-
-                                      child: LinearProgressIndicator(
-                                        value: progress,
-                                        minHeight: 12,
-                                        backgroundColor: const Color.fromARGB(
-                                          255,
-                                          1,
-                                          250,
-                                          18,
-                                        ),
-                                        valueColor: AlwaysStoppedAnimation(
-                                          Colors.grey.shade200,
-                                        ),
+                                    Text(
+                                      "Find foods rich in protein, calcium, iron and more",
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.25,
+                                        color: Colors.grey.shade700,
                                       ),
                                     ),
 
-                                    SizedBox(height: sh * .02),
+                                    const SizedBox(height: 11),
 
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            "Your meal plan is ",
-                                            style: TextStyle(
-                                              color: Colors.grey.shade700,
-                                              fontSize: sw * .04,
+                                    NutritionSearchBar(
+                                      onSearch: (query) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => MacroNutritionPage(
+                                              initialQuery: query,
                                             ),
                                           ),
-                                        ),
-
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 18,
-                                            vertical: 8,
-                                          ),
-
-                                          decoration: BoxDecoration(
-                                            color: const Color.fromARGB(
-                                              255,
-                                              1,
-                                              53,
-                                              17,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              30,
-                                            ),
-                                          ),
-
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-
-                                            children: [
-                                              Icon(
-                                                Icons.check,
-                                                size: 18,
-                                                color: Colors.white,
-                                              ),
-
-                                              SizedBox(width: 6),
-
-                                              Text(
-                                                "Active",
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
                               ),
 
-                              SizedBox(height: sh * .03),
-                              GestureDetector(
+                              SizedBox(height: sh * .018),
+
+                              // =================================================
+                              // VIEW MEAL PLAN
+                              // =================================================
+                              ActionButton(
+                                icon: Icons.restaurant_menu_rounded,
+                                title: "View 2-Day Meal Plan",
+
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -497,55 +256,17 @@ class _DietHomeState extends State<DietHome> {
                                     ),
                                   );
                                 },
-                                child: GlassCard(
-                                  padding: EdgeInsets.zero,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: Color.fromARGB(255, 1, 53, 17),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.green.withOpacity(.25),
-                                          blurRadius: 15,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.restaurant_menu,
-                                          color: Colors.white,
-                                          size: 26,
-                                        ),
-                                        SizedBox(width: 16),
-                                        Expanded(
-                                          child: Text(
-                                            "View 2-Day Meal Plan",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
 
-                              SizedBox(height: sh * .03),
+                              const SizedBox(height: 10),
 
-                              GestureDetector(
+                              // =================================================
+                              // SHOPPING LIST
+                              // =================================================
+                              ActionButton(
+                                icon: Icons.shopping_cart_outlined,
+                                title: "Shopping List",
+
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -554,110 +275,17 @@ class _DietHomeState extends State<DietHome> {
                                     ),
                                   );
                                 },
-                                child: GlassCard(
-                                  padding: EdgeInsets.zero,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: Color.fromARGB(255, 1, 53, 17),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.green.withOpacity(.25),
-                                          blurRadius: 15,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.shopping_cart_outlined,
-                                          color: Colors.white,
-                                          size: 26,
-                                        ),
-                                        SizedBox(width: 16),
-                                        Expanded(
-                                          child: Text(
-                                            "Shopping List",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              SizedBox(height: sh * .04),
-
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: StatCard(
-                                      icon: Icons.local_fire_department,
-                                      iconColor: Colors.orange,
-                                      value: "${dailyTarget["calories"]}",
-                                      unit: "kcal",
-                                      title: "Calories",
-                                    ),
-                                  ),
-
-                                  SizedBox(width: sw * .025),
-
-                                  Expanded(
-                                    child: StatCard(
-                                      icon: Icons.eco,
-                                      iconColor: Colors.green,
-                                      value: "${dailyTarget["protein"]}",
-                                      unit: "g",
-                                      title: "Protein",
-                                    ),
-                                  ),
-                                ],
                               ),
 
                               SizedBox(height: sh * .018),
 
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: StatCard(
-                                      icon: Icons.water_drop,
-                                      iconColor: Colors.blue,
-                                      value: "${dailyTarget["water"]}",
-                                      unit: "Liters",
-                                      title: "Water",
-                                    ),
-                                  ),
+                              // =================================================
+                              // SKIN CARE
+                              // =================================================
+                              ActionButton(
+                                icon: Icons.face_retouching_natural_rounded,
+                                title: "Skin Care",
 
-                                  SizedBox(width: sw * .025),
-
-                                  Expanded(
-                                    child: StatCard(
-                                      icon: Icons.nightlight_round,
-                                      iconColor: Colors.indigo,
-                                      value: "${dailyTarget["sleep"]}",
-                                      unit: "Hours",
-                                      title: "Sleep",
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: sh * .03),
-
-                              GestureDetector(
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -666,55 +294,17 @@ class _DietHomeState extends State<DietHome> {
                                     ),
                                   );
                                 },
-                                child: GlassCard(
-                                  padding: EdgeInsets.zero,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: Color.fromARGB(255, 1, 53, 17),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.green.withOpacity(.25),
-                                          blurRadius: 15,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.face,
-                                          color: Colors.white,
-                                          size: 26,
-                                        ),
-                                        SizedBox(width: 16),
-                                        Expanded(
-                                          child: Text(
-                                            "Skin Care",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
 
-                              SizedBox(height: sw * .03),
+                              const SizedBox(height: 10),
 
-                              GestureDetector(
+                              // =================================================
+                              // HAIR CARE
+                              // =================================================
+                              ActionButton(
+                                icon: Icons.face_3_rounded,
+                                title: "Hair Care",
+
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -723,110 +313,17 @@ class _DietHomeState extends State<DietHome> {
                                     ),
                                   );
                                 },
-                                child: GlassCard(
-                                  padding: EdgeInsets.zero,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: Color.fromARGB(255, 1, 53, 17),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.green.withOpacity(.25),
-                                          blurRadius: 15,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.face_3,
-                                          color: Colors.white,
-                                          size: 26,
-                                        ),
-                                        SizedBox(width: 16),
-                                        Expanded(
-                                          child: Text(
-                                            "Hair Care",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
 
-                              SizedBox(height: sh * .03),
+                              SizedBox(height: sh * .022),
 
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => MacroNutritionEntry(),
-                                    ),
-                                  );
-                                },
-                                child: GlassCard(
-                                  padding: EdgeInsets.zero,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      color: Color.fromARGB(255, 1, 53, 17),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.green.withOpacity(.25),
-                                          blurRadius: 15,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.face_3,
-                                          color: Colors.white,
-                                          size: 26,
-                                        ),
-                                        SizedBox(width: 16),
-                                        Expanded(
-                                          child: Text(
-                                            "Nutrition Foods",
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              // =================================================
+                              // DAILY TARGETS
+                              // NOW AT THE VERY BOTTOM
+                              // =================================================
+                              _buildStatsGrid(dailyTarget: dailyTarget),
 
-                              SizedBox(height: sh * .03),
+                              const SizedBox(height: 12),
                             ],
                           ),
                         ),
@@ -837,25 +334,691 @@ class _DietHomeState extends State<DietHome> {
               );
             },
           ),
+
+          // ==========================================================
+          // AI COACH
+          // ==========================================================
           floatingActionButton: FloatingActionButton(
-            backgroundColor: Color(0xffA8DB69),
+            heroTag: "diet_ai_coach_fab",
+
+            backgroundColor: const Color(0xffA8DB69),
+
+            elevation: 5,
+
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadiusGeometry.circular(50),
+              borderRadius: BorderRadius.circular(50),
             ),
+
             onPressed: () {
-              // Add your action code here!
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AiCoachScreen()),
               );
             },
-            child: const Icon(Icons.smart_toy, color: Color(0xff1E4027)),
+
+            child: const Icon(
+              Icons.smart_toy_rounded,
+              color: Color(0xff1E4027),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // MEAL PLAN STATUS
+  // ================================================================
+
+  Widget _buildMealPlanStatus({
+    required String remainingTime,
+    required double progress,
+  }) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      borderRadius: BorderRadius.circular(22),
+
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // ICON
+              Container(
+                height: 37,
+                width: 37,
+
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: darkGreen,
+
+                  boxShadow: [
+                    BoxShadow(
+                      color: darkGreen.withOpacity(.20),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+
+                child: const Icon(
+                  Icons.timer_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+
+              const SizedBox(width: 11),
+
+              // TEXT
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+
+                  children: [
+                    const Text(
+                      "Meal Plan",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: textGreen,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade700,
+                        ),
+
+                        children: [
+                          const TextSpan(text: "Plan expires in "),
+
+                          TextSpan(
+                            text: remainingTime,
+
+                            style: const TextStyle(
+                              color: Color(0xff4E7A42),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // PERCENTAGE
+              Text(
+                "${(progress * 100).toInt()}%",
+
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 9),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+
+              backgroundColor: Colors.white.withOpacity(.65),
+
+              valueColor: const AlwaysStoppedAnimation(Color(0xff39D353)),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Your meal plan is",
+
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+
+                decoration: BoxDecoration(
+                  color: darkGreen,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+
+                  children: [
+                    Icon(Icons.check_rounded, size: 12, color: Colors.white),
+
+                    SizedBox(width: 4),
+
+                    Text(
+                      "Active",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // NEW 2 × 2 STATISTICS GRID
+  // ================================================================
+
+  Widget _buildStatsGrid({required Map<String, dynamic> dailyTarget}) {
+    return Column(
+      children: [
+        // ------------------------------------------------------------
+        // ROW 1
+        // ------------------------------------------------------------
+        Row(
+          children: [
+            Expanded(
+              child: LargeStatCard(
+                icon: Icons.local_fire_department_rounded,
+                iconColor: Colors.orange,
+                backgroundColor: const Color(0xfffff5e8),
+                value: "${dailyTarget["calories"]}",
+                unit: "kcal",
+                title: "Calories",
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: LargeStatCard(
+                icon: Icons.eco_rounded,
+                iconColor: const Color(0xff4E9F62),
+                backgroundColor: const Color(0xffeef8ee),
+                value: "${dailyTarget["protein"]}",
+                unit: "g",
+                title: "Protein",
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        // ------------------------------------------------------------
+        // ROW 2
+        // ------------------------------------------------------------
+        Row(
+          children: [
+            Expanded(
+              child: LargeStatCard(
+                icon: Icons.water_drop_rounded,
+                iconColor: const Color(0xff318BEA),
+                backgroundColor: const Color(0xffedf6ff),
+                value: "${dailyTarget["water"]}",
+                unit: "L",
+                title: "Water",
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: LargeStatCard(
+                icon: Icons.nightlight_round,
+                iconColor: const Color(0xff5A5FCB),
+                backgroundColor: const Color(0xfff0f1ff),
+                value: "${dailyTarget["sleep"]}",
+                unit: "hrs",
+                title: "Sleep",
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ================================================================
+  // EXPIRED PLAN
+  // ================================================================
+
+  Widget _buildExpiredPlan(BuildContext context, double sw, double sh) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(sw * .06),
+
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+
+            children: [
+              Icon(
+                Icons.fitness_center_rounded,
+                size: sw * .22,
+                color: Colors.orange,
+              ),
+
+              SizedBox(height: sh * .03),
+
+              Text(
+                "Meal Plan Expired",
+                textAlign: TextAlign.center,
+
+                style: TextStyle(
+                  fontSize: sw * .065,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              SizedBox(height: sh * .018),
+
+              Text(
+                "Your meal plan has completed its 2-day diet cycle.",
+                textAlign: TextAlign.center,
+
+                style: TextStyle(
+                  fontSize: sw * .042,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+
+              SizedBox(height: sh * .012),
+
+              Text(
+                "Generate a fresh meal plan based on your latest fitness progress to continue improving safely and effectively.",
+                textAlign: TextAlign.center,
+
+                style: TextStyle(
+                  fontSize: sw * .038,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+
+              SizedBox(height: sh * .05),
+
+              SizedBox(
+                width: double.infinity,
+                height: sh * .065,
+
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh),
+
+                  label: const Text("Generate New Meal"),
+
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3A6F4B),
+                    foregroundColor: Colors.white,
+
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+
+                  onPressed: generateMealPlan
+                      ? null
+                      : () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+
+                            builder: (context) {
+                              return AlertDialog(
+                                title: const Text("Generate New Plan"),
+
+                                content: const Text(
+                                  "This will replace your current meal plan. Continue?",
+                                ),
+
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context, false);
+                                    },
+
+                                    child: const Text("Cancel"),
+                                  ),
+
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(context, true);
+                                    },
+
+                                    child: const Text("Generate"),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (confirm != true) {
+                            return;
+                          }
+
+                          final messenger = ScaffoldMessenger.of(context);
+
+                          try {
+                            setState(() {
+                              generateMealPlan = true;
+                            });
+
+                            final user =
+                                Supabase.instance.client.auth.currentUser;
+
+                            if (user == null) return;
+
+                            await SupabaseService().generateAndSaveMealPlan(
+                              user.id,
+                            );
+
+                            if (mounted) {
+                              setState(() {});
+                            }
+
+                            if (!mounted) return;
+
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "New meal plan generated successfully",
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(e.toString())),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                generateMealPlan = false;
+                              });
+                            }
+                          }
+                        },
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+// ====================================================================
+// ACTION BUTTON
+// ====================================================================
+
+class ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const ActionButton({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+
+      child: InkWell(
+        onTap: onTap,
+
+        borderRadius: BorderRadius.circular(17),
+
+        child: Ink(
+          height: 50,
+
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+
+              colors: [Color(0xff06431D), Color(0xff075D27)],
+            ),
+
+            borderRadius: BorderRadius.circular(17),
+
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xff063D1B).withOpacity(.20),
+
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+
+            child: Row(
+              children: [
+                Container(
+                  height: 31,
+                  width: 31,
+
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.14),
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: Icon(icon, color: Colors.white, size: 17),
+                ),
+
+                const SizedBox(width: 11),
+
+                Expanded(
+                  child: Text(
+                    title,
+
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+
+                Container(
+                  height: 25,
+                  width: 25,
+
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.10),
+                    shape: BoxShape.circle,
+                  ),
+
+                  child: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// NEW LARGE STAT CARD
+// ====================================================================
+
+class LargeStatCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final String value;
+  final String unit;
+  final String title;
+
+  const LargeStatCard({
+    super.key,
+    required this.icon,
+    required this.iconColor,
+    required this.backgroundColor,
+    required this.value,
+    required this.unit,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 125,
+
+      padding: const EdgeInsets.all(14),
+
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.50),
+
+        borderRadius: BorderRadius.circular(22),
+
+        border: Border.all(color: Colors.white.withOpacity(.75), width: 1.2),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.07),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          // ----------------------------------------------------------
+          // TOP ICON + TITLE
+          // ----------------------------------------------------------
+          Row(
+            children: [
+              Container(
+                height: 35,
+                width: 35,
+
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  shape: BoxShape.circle,
+                ),
+
+                child: Icon(icon, color: iconColor, size: 19),
+              ),
+
+              const SizedBox(width: 9),
+
+              Expanded(
+                child: Text(
+                  title,
+
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff27472F),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const Spacer(),
+
+          // ----------------------------------------------------------
+          // VALUE
+          // ----------------------------------------------------------
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+
+            textBaseline: TextBaseline.alphabetic,
+
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xff172A1C),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 4),
+
+              Text(
+                unit,
+
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 2),
+
+          Text(
+            "Daily target",
+
+            style: TextStyle(
+              fontSize: 10.5,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// GLASS CARD
+// ====================================================================
 
 class GlassCard extends StatelessWidget {
   final Widget child;
@@ -871,29 +1034,33 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = borderRadius ?? BorderRadius.circular(28);
+    final radius = borderRadius ?? BorderRadius.circular(24);
 
     return ClipRRect(
       borderRadius: radius,
+
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+
         child: Container(
           padding: padding,
+
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.28),
+            color: Colors.white.withOpacity(.30),
+
             borderRadius: radius,
-            border: Border.all(
-              color: Colors.white.withOpacity(.55),
-              width: 1.2,
-            ),
+
+            border: Border.all(color: Colors.white.withOpacity(.55), width: 1),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(.06),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
+
           child: child,
         ),
       ),
@@ -901,96 +1068,9 @@ class GlassCard extends StatelessWidget {
   }
 }
 
-class StatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String value;
-  final String unit;
-  final String title;
-
-  const StatCard({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.unit,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-
-      child: Column(
-        children: [
-          Container(
-            height: 32,
-            width: 32,
-
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(color: iconColor.withOpacity(.18), blurRadius: 18),
-              ],
-            ),
-
-            child: Icon(icon, color: iconColor, size: 25),
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SectionTitle extends StatelessWidget {
-  final String title;
-
-  const SectionTitle({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xff1B3B24),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ====================================================================
+// OPTIONAL GRADIENT BUTTON
+// ====================================================================
 
 class GradientButton extends StatelessWidget {
   final VoidCallback onTap;
@@ -1006,41 +1086,48 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: onTap,
+    return Material(
+      color: Colors.transparent,
 
-      child: Ink(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            colors: [Color(0xff406C43), Color(0xff24462C)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withOpacity(.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+
+        onTap: onTap,
+
+        child: Ink(
+          height: 50,
+
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+
+            gradient: const LinearGradient(
+              colors: [Color(0xff406C43), Color(0xff24462C)],
             ),
-          ],
-        ),
 
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(.18),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
 
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white),
 
-              const SizedBox(width: 10),
+            children: [
+              Icon(icon, color: Colors.white, size: 18),
+
+              const SizedBox(width: 8),
 
               Text(
                 text,
+
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
