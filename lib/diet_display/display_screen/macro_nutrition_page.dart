@@ -136,7 +136,7 @@ class _ResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = result.foods.length + result.recipes.length;
+    final total = result.foods.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,27 +173,7 @@ class _ResultView extends StatelessWidget {
           ),
         ],
 
-        if (result.recipes.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          const Text(
-            'FitNova Recipes',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          ...result.recipes.map(
-            (recipe) => _RecipeCard(
-              recipe: recipe,
-              nutrientName: result.nutrientName,
-              nutrientUnit: result.nutrientUnit,
-            ),
-          ),
-        ],
-
-        if (result.foods.isEmpty && result.recipes.isEmpty)
+        if (result.foods.isEmpty)
           const _EmptyState(),
       ],
     );
@@ -281,180 +261,6 @@ class _FoodCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _RecipeCard extends StatelessWidget {
-  final NutritionRecipe recipe;
-  final String nutrientName;
-  final String nutrientUnit;
-
-  const _RecipeCard({
-    required this.recipe,
-    required this.nutrientName,
-    required this.nutrientUnit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        title: Text(
-          recipe.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: Text(
-          '${nutrientName}: ${_format(recipe.nutrientValue, nutrientUnit)} '
-          'per serving',
-        ),
-        childrenPadding: const EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          16,
-        ),
-        children: [
-          if (recipe.description != null &&
-              recipe.description!.trim().isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(recipe.description!),
-              ),
-            ),
-
-          Row(
-            children: [
-              Expanded(
-                child: _NutritionValue(
-                  label: 'Calories',
-                  value: _format(
-                    recipe.calories,
-                    'kcal',
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _NutritionValue(
-                  label: 'Protein',
-                  value: _format(
-                    recipe.proteinG,
-                    'g',
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _NutritionValue(
-                  label: 'Fat',
-                  value: _format(
-                    recipe.fatG,
-                    'g',
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          if (recipe.ingredients.isNotEmpty)
-            _RecipeSection(
-              title: 'Ingredients',
-              child: Column(
-                children: recipe.ingredients.map(
-                  (ingredient) {
-                    final quantity =
-                        ingredient.quantity == null
-                            ? ''
-                            : _formatNumber(
-                                ingredient.quantity!,
-                              );
-
-                    final unit =
-                        ingredient.unit ?? '';
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 4,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.circle,
-                            size: 6,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              '${ingredient.ingredientName}'
-                              '${quantity.isEmpty ? '' : ' • $quantity $unit'}',
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ).toList(),
-              ),
-            ),
-
-          if (recipe.instructions != null &&
-              recipe.instructions!.trim().isNotEmpty)
-            _RecipeSection(
-              title: 'Instructions',
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  recipe.instructions!,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecipeSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _RecipeSection({
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withOpacity(0.45),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          child,
-        ],
       ),
     );
   }
@@ -580,10 +386,4 @@ String _format(double? value, String unit) {
       : value.toStringAsFixed(1);
 
   return '$number $unit';
-}
-
-String _formatNumber(double value) {
-  return value == value.roundToDouble()
-      ? value.toInt().toString()
-      : value.toStringAsFixed(1);
 }

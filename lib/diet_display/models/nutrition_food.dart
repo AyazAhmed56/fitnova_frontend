@@ -108,126 +108,6 @@ class NutritionFood {
       nutrientUnit: json['nutrient_unit']?.toString(),
     );
   }
-
-  bool get isRecipe => foodType.toLowerCase() == 'recipe';
-}
-
-class NutritionRecipeIngredient {
-  final String id;
-  final String ingredientName;
-  final double? quantity;
-  final String? unit;
-  final int sortOrder;
-
-  const NutritionRecipeIngredient({
-    required this.id,
-    required this.ingredientName,
-    this.quantity,
-    this.unit,
-    this.sortOrder = 0,
-  });
-
-  factory NutritionRecipeIngredient.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    double? number(dynamic value) {
-      if (value == null) return null;
-      if (value is num) return value.toDouble();
-      return double.tryParse(value.toString());
-    }
-
-    return NutritionRecipeIngredient(
-      id: json['id']?.toString() ?? '',
-      ingredientName: json['ingredient_name']?.toString() ?? '',
-      quantity: number(json['quantity']),
-      unit: json['unit']?.toString(),
-      sortOrder: int.tryParse(
-            json['sort_order']?.toString() ?? '',
-          ) ??
-          0,
-    );
-  }
-}
-
-class NutritionRecipe {
-  final String id;
-  final String name;
-  final String normalizedName;
-  final String? description;
-  final String? imageUrl;
-
-  final double? calories;
-  final double? proteinG;
-  final double? carbohydratesG;
-  final double? fatG;
-  final double? fiberG;
-  final double? calciumMg;
-  final double? ironMg;
-
-  final String? instructions;
-  final List<NutritionRecipeIngredient> ingredients;
-
-  final double? nutrientValue;
-  final String? nutrientUnit;
-
-  const NutritionRecipe({
-    required this.id,
-    required this.name,
-    required this.normalizedName,
-    this.description,
-    this.imageUrl,
-    this.calories,
-    this.proteinG,
-    this.carbohydratesG,
-    this.fatG,
-    this.fiberG,
-    this.calciumMg,
-    this.ironMg,
-    this.instructions,
-    this.ingredients = const [],
-    this.nutrientValue,
-    this.nutrientUnit,
-  });
-
-  factory NutritionRecipe.fromJson(Map<String, dynamic> json) {
-    double? number(dynamic value) {
-      if (value == null) return null;
-      if (value is num) return value.toDouble();
-      return double.tryParse(value.toString());
-    }
-
-    final rawIngredients = json['ingredients'];
-    final ingredients = rawIngredients is List
-        ? rawIngredients
-            .whereType<Map>()
-            .map(
-              (item) => NutritionRecipeIngredient.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList()
-        : <NutritionRecipeIngredient>[];
-
-    return NutritionRecipe(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      normalizedName:
-          json['normalized_name']?.toString() ?? '',
-      description: json['description']?.toString(),
-      imageUrl: json['image_url']?.toString(),
-      calories: number(json['calories']),
-      proteinG: number(json['protein_g']),
-      carbohydratesG: number(json['carbohydrates_g']),
-      fatG: number(json['fat_g']),
-      fiberG: number(json['fiber_g']),
-      calciumMg: number(json['calcium_mg']),
-      ironMg: number(json['iron_mg']),
-      instructions: json['instructions']?.toString(),
-      ingredients: ingredients,
-      nutrientValue: number(json['nutrient_value']),
-      nutrientUnit: json['nutrient_unit']?.toString(),
-    );
-  }
 }
 
 class NutritionSearchResponse {
@@ -236,7 +116,6 @@ class NutritionSearchResponse {
   final String nutrientName;
   final String nutrientUnit;
   final List<NutritionFood> foods;
-  final List<NutritionRecipe> recipes;
 
   const NutritionSearchResponse({
     required this.query,
@@ -244,17 +123,12 @@ class NutritionSearchResponse {
     required this.nutrientName,
     required this.nutrientUnit,
     required this.foods,
-    required this.recipes,
   });
 
-  factory NutritionSearchResponse.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    final nutrient =
-        Map<String, dynamic>.from(json['nutrient'] ?? {});
+  factory NutritionSearchResponse.fromJson(Map<String, dynamic> json) {
+    final nutrient = Map<String, dynamic>.from(json['nutrient'] ?? {});
 
     final rawFoods = json['foods'];
-    final rawRecipes = json['recipes'];
 
     return NutritionSearchResponse(
       query: json['query']?.toString() ?? '',
@@ -263,23 +137,12 @@ class NutritionSearchResponse {
       nutrientUnit: nutrient['unit']?.toString() ?? '',
       foods: rawFoods is List
           ? rawFoods
-              .whereType<Map>()
-              .map(
-                (item) => NutritionFood.fromJson(
-                  Map<String, dynamic>.from(item),
-                ),
-              )
-              .toList()
-          : const [],
-      recipes: rawRecipes is List
-          ? rawRecipes
-              .whereType<Map>()
-              .map(
-                (item) => NutritionRecipe.fromJson(
-                  Map<String, dynamic>.from(item),
-                ),
-              )
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      NutritionFood.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList()
           : const [],
     );
   }
