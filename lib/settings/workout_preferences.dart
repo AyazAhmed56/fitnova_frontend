@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,17 +16,17 @@ class WorkoutPreferencesScreen extends StatefulWidget {
 
 class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
   final SupabaseService _service = SupabaseService();
+
   UserProfileModel? profile;
+
   bool isLoading = true;
   bool isSaving = false;
+
   String workoutPreference = "";
   String workoutPlace = "";
   String equipmentPreference = "";
   String workoutSplit = "";
   String fitnessLevel = "";
-  String cardioPreference = "";
-  String sportName = "";
-  String competitionLevel = "";
 
   int workoutDays = 0;
 
@@ -74,13 +76,39 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
     "Advanced",
   ];
 
+  final List<String> weekDays = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  final Map<String, TextEditingController> customSplitControllers = {};
+
   final Color primary = const Color(0xFF3A6F4B);
   final Color lightGreen = const Color(0xFFEAF4ED);
 
   @override
   void initState() {
     super.initState();
+
+    for (final day in weekDays) {
+      customSplitControllers[day] = TextEditingController();
+    }
+
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in customSplitControllers.values) {
+      controller.dispose();
+    }
+
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -105,6 +133,21 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
         workoutSplit = result.split;
         fitnessLevel = result.fitnessLevel;
         workoutDays = result.workoutDays;
+
+        /*
+         * Load custom split.
+         *
+         * UserProfileModel should contain:
+         *
+         * Map<String, dynamic>? customSplit;
+         */
+        if (result.customSplit != null) {
+          final custom = result.customSplit!;
+
+          for (final day in weekDays) {
+            customSplitControllers[day]!.text = custom[day]?.toString() ?? "";
+          }
+        }
       }
     } catch (e) {
       _showMessage("Failed to load workout preferences: $e", Colors.red);
@@ -117,13 +160,54 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
     }
   }
 
+  bool _validateCustomSplit() {
+    if (workoutSplit != "Custom") {
+      return true;
+    }
+
+    for (final day in weekDays) {
+      final value = customSplitControllers[day]!.text.trim();
+
+      if (value.isEmpty) {
+        _showMessage("Please enter a workout split for $day.", Colors.red);
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Map<String, String> _getCustomSplit() {
+    final Map<String, String> customSplit = {};
+
+    for (final day in weekDays) {
+      customSplit[day] = customSplitControllers[day]!.text.trim();
+    }
+
+    return customSplit;
+  }
+
   Future<void> _savePreferences() async {
     final user = Supabase.instance.client.auth.currentUser;
+
     if (user == null) return;
 
-    setState(() => isSaving = true);
+    if (!_validateCustomSplit()) {
+      return;
+    }
+
+    setState(() {
+      isSaving = true;
+    });
 
     try {
+      Map<String, String>? customSplit;
+
+      if (workoutSplit == "Custom") {
+        customSplit = _getCustomSplit();
+      }
+
       await _service.updateCurrentGoalWorkoutSettings(
         profileId: user.id,
         workoutPrefer: workoutPreference,
@@ -132,16 +216,24 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
         fitnessLevel: fitnessLevel,
         workoutDays: workoutDays,
         workoutPlace: workoutPlace,
+        customSplit: customSplit,
       );
 
       if (!mounted) return;
+
       _showMessage('Workout preferences updated successfully.', Colors.green);
+
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+
       _showMessage('Failed to update workout preferences: $e', Colors.red);
     } finally {
-      if (mounted) setState(() => isSaving = false);
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
     }
   }
 
@@ -162,7 +254,6 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-
       child: DropdownButtonFormField<String>(
         value: items.contains(value) ? value : null,
 
@@ -171,7 +262,6 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
           prefixIcon: Icon(icon, color: primary),
           filled: true,
           fillColor: Colors.white,
-
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
@@ -190,34 +280,97 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
     );
   }
 
-  // Widget _textField({
-  //   required String label,
-  //   required String value,
-  //   required IconData icon,
-  //   required ValueChanged<String> onChanged,
-  // }) {
-  //   return Padding(
-  //     padding: const EdgeInsets.only(bottom: 16),
+  Widget _customSplitField(String day) {
+    final controller = customSplitControllers[day]!;
 
-  //     child: TextFormField(
-  //       initialValue: value,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
 
-  //       onChanged: onChanged,
+        textCapitalization: TextCapitalization.words,
 
-  //       decoration: InputDecoration(
-  //         labelText: label,
-  //         prefixIcon: Icon(icon, color: primary),
-  //         filled: true,
-  //         fillColor: Colors.white,
+        decoration: InputDecoration(
+          labelText: day,
+          hintText: "Example: Chest, Back, Legs, Rest",
+          prefixIcon: Icon(Icons.fitness_center, color: primary),
+          filled: true,
+          fillColor: Colors.white,
 
-  //         border: OutlineInputBorder(
-  //           borderRadius: BorderRadius.circular(16),
-  //           borderSide: BorderSide.none,
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: primary, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _customSplitSection() {
+    if (workoutSplit != "Custom") {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+
+      margin: const EdgeInsets.only(top: 2, bottom: 16),
+
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FBF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: primary.withOpacity(0.12)),
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Row(
+            children: [
+              Icon(Icons.view_week_outlined, color: primary),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: Text(
+                  "Custom Weekly Split",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            "Enter the workout split you want for each day.",
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+
+          const SizedBox(height: 16),
+
+          ...weekDays.map((day) => _customSplitField(day)),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -250,8 +403,8 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
 
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+
             children: [
-              // HEADER
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(18),
@@ -278,6 +431,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+
                         children: [
                           Text(
                             "Workout Preferences",
@@ -318,6 +472,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 value: workoutPreference,
                 items: workoutPreferenceOptions,
                 icon: Icons.fitness_center,
+
                 onChanged: (value) {
                   setState(() {
                     workoutPreference = value ?? "";
@@ -330,6 +485,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 value: workoutPlace,
                 items: workoutPlaceOptions,
                 icon: Icons.location_on_outlined,
+
                 onChanged: (value) {
                   setState(() {
                     workoutPlace = value ?? "";
@@ -342,6 +498,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 value: equipmentPreference,
                 items: equipmentOptions,
                 icon: Icons.sports_gymnastics,
+
                 onChanged: (value) {
                   setState(() {
                     equipmentPreference = value ?? "";
@@ -354,6 +511,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 value: workoutSplit,
                 items: splitOptions,
                 icon: Icons.view_week_outlined,
+
                 onChanged: (value) {
                   setState(() {
                     workoutSplit = value ?? "";
@@ -361,11 +519,15 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 },
               ),
 
+              // CUSTOM SPLIT FIELDS
+              _customSplitSection(),
+
               _dropdown(
                 title: "Fitness Level",
                 value: fitnessLevel,
                 items: fitnessLevelOptions,
                 icon: Icons.trending_up,
+
                 onChanged: (value) {
                   setState(() {
                     fitnessLevel = value ?? "";
@@ -392,6 +554,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
 
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+
                   children: [
                     Row(
                       children: [
@@ -417,10 +580,12 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                     ),
 
                     Slider(
-                      value: workoutDays.toDouble(),
+                      value: workoutDays.toDouble().clamp(1, 7),
+
                       min: 1,
                       max: 7,
                       divisions: 6,
+
                       activeColor: primary,
 
                       onChanged: (value) {
@@ -433,48 +598,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                 ),
               ),
 
-              // const SizedBox(height: 24),
-
-              // const Text(
-              //   "Cardio & Sports",
-              //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              // ),
-
-              // const SizedBox(height: 16),
-
-              // _dropdown(
-              //   title: "Cardio Preference",
-              //   value: cardioPreference,
-              //   items: cardioOptions,
-              //   icon: Icons.directions_run,
-              //   onChanged: (value) {
-              //     setState(() {
-              //       cardioPreference = value ?? "";
-              //     });
-              //   },
-              // ),
-
-              // _textField(
-              //   label: "Sport / Activity",
-              //   value: sportName,
-              //   icon: Icons.sports,
-              //   onChanged: (value) {
-              //     sportName = value;
-              //   },
-              // ),
-
-              // _dropdown(
-              //   title: "Competition Level",
-              //   value: competitionLevel,
-              //   items: competitionOptions,
-              //   icon: Icons.emoji_events_outlined,
-              //   onChanged: (value) {
-              //     setState(() {
-              //       competitionLevel = value ?? "";
-              //     });
-              //   },
-              // ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
 
               SizedBox(
                 width: double.infinity,
@@ -496,6 +620,7 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
                       ? const SizedBox(
                           height: 22,
                           width: 22,
+
                           child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,

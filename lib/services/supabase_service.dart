@@ -7,9 +7,14 @@ class SupabaseService {
   SupabaseService();
 
   static const mealPlanExpiry = Duration(hours: 48);
+
   static const workoutPlanExpiry = Duration(days: 30);
 
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // ============================================================
+  // SAVE USER PROFILE
+  // ============================================================
 
   Future<void> saveUserProfile(UserProfileModel profile) async {
     final user = _supabase.auth.currentUser;
@@ -20,16 +25,17 @@ class SupabaseService {
 
     final authUid = user.id;
 
-    // IMPORTANT:
     // profiles.id must always be auth.uid
     final profileId = authUid;
 
-    // -----------------------------------
+    // ----------------------------------------------------------
     // 1. Save Profile
-    // -----------------------------------
+    // ----------------------------------------------------------
 
     final profileData = profile.toJson();
 
+    // These fields belong to goal_details
+    // or goal-specific tables.
     profileData.remove('goal');
     profileData.remove('target_weight');
     profileData.remove('duration_months');
@@ -46,16 +52,15 @@ class SupabaseService {
     profileData.remove('competition_level');
     profileData.remove('workout_days');
 
-    // NEVER use profile.uid here
     profileData['id'] = profileId;
 
     profileData['updated_at'] = DateTime.now().toIso8601String();
 
     await _supabase.from('profiles').upsert(profileData);
 
-    // -----------------------------------
+    // ----------------------------------------------------------
     // 2. Save Goal Details
-    // -----------------------------------
+    // ----------------------------------------------------------
 
     final goalResponse = await _supabase
         .from('goal_details')
@@ -68,18 +73,18 @@ class SupabaseService {
 
     final goalId = goalResponse['id'].toString();
 
-    // -----------------------------------
-    // 3. Link goal to profile
-    // -----------------------------------
+    // ----------------------------------------------------------
+    // 3. Link Goal To Profile
+    // ----------------------------------------------------------
 
     await _supabase
         .from('profiles')
         .update({'goal_id': goalId})
         .eq('id', profileId);
 
-    // -----------------------------------
-    // 4. Delete previous goal record
-    // -----------------------------------
+    // ----------------------------------------------------------
+    // 4. Delete Previous Goal Record
+    // ----------------------------------------------------------
 
     await Future.wait([
       _supabase.from('lose_weight_goals').delete().eq('goal_id', goalId),
@@ -100,9 +105,9 @@ class SupabaseService {
           .eq('goal_id', goalId),
     ]);
 
-    // -----------------------------------
-    // 5. Insert selected goal
-    // -----------------------------------
+    // ----------------------------------------------------------
+    // 5. Insert Selected Goal
+    // ----------------------------------------------------------
 
     switch (profile.goal) {
       case "Lose Weight":
@@ -179,23 +184,66 @@ class SupabaseService {
     }
   }
 
+  // ============================================================
+  // GET USER PROFILE
+  // ============================================================
+
   Future<UserProfileModel?> getUserProfile(String uid) async {
-    // ------------------------------------------
+    // ----------------------------------------------------------
     // 1. Fetch Profile
-    // ------------------------------------------
+    // ----------------------------------------------------------
+
     final profileResponse = await _supabase
         .from('profiles')
         .select(
-          'id, full_name, phone, age, gender, height, weight, activity_level, dietary_preferences, allergies, comments, meals_per_day, sleep_hours, water_intake, job, office_time, break_time, workout_time, exercise, wake_up, budget, workout_prefer, equipment_prefer, split, skin_tone, skin_concerns, hair_type, hair_concerns, scalp_type, body_type, body_goal, fitness_level, created_at, updated_at, goal_id',
+          'id, '
+          'full_name, '
+          'phone, '
+          'age, '
+          'gender, '
+          'height, '
+          'weight, '
+          'activity_level, '
+          'dietary_preferences, '
+          'allergies, '
+          'comments, '
+          'meals_per_day, '
+          'sleep_hours, '
+          'water_intake, '
+          'job, '
+          'office_time, '
+          'break_time, '
+          'workout_time, '
+          'exercise, '
+          'wake_up, '
+          'budget, '
+          'workout_prefer, '
+          'equipment_prefer, '
+          'split, '
+          'custom_split, '
+          'skin_tone, '
+          'skin_concerns, '
+          'hair_type, '
+          'hair_concerns, '
+          'scalp_type, '
+          'body_type, '
+          'body_goal, '
+          'fitness_level, '
+          'created_at, '
+          'updated_at, '
+          'goal_id',
         )
         .eq('id', uid)
         .maybeSingle();
 
-    if (profileResponse == null) return null;
+    if (profileResponse == null) {
+      return null;
+    }
 
-    // ------------------------------------------
+    // ----------------------------------------------------------
     // 2. Fetch Goal Details
-    // ------------------------------------------
+    // ----------------------------------------------------------
+
     final goalResponse = await _supabase
         .from('goal_details')
         .select()
@@ -211,6 +259,10 @@ class SupabaseService {
     final goalId = goalResponse['id'];
 
     Map<String, dynamic>? goalData;
+
+    // ----------------------------------------------------------
+    // 3. Fetch Goal Specific Data
+    // ----------------------------------------------------------
 
     switch (goalResponse['goal_name']) {
       case "Lose Weight":
@@ -277,11 +329,17 @@ class SupabaseService {
     return UserProfileModel.fromJson(profileResponse);
   }
 
+  // ============================================================
+  // UPDATE PROFILE FIELDS
+  // ============================================================
+
   Future<void> updateProfileFields(
     String profileId,
     Map<String, dynamic> fields,
   ) async {
-    if (fields.isEmpty) return;
+    if (fields.isEmpty) {
+      return;
+    }
 
     await Supabase.instance.client
         .from('profiles')
@@ -289,10 +347,14 @@ class SupabaseService {
         .eq('id', profileId);
   }
 
+  // ============================================================
+  // UPDATE COMPLETE USER PROFILE
+  // ============================================================
+
   Future<void> updateUserProfile(UserProfileModel profile) async {
-    // Kept for places that genuinely need a full profile update.
-    // Settings screens should use updateProfileFields() instead.
     final data = profile.toJson();
+
+    // These belong to goal tables.
     data.remove('goal');
     data.remove('target_weight');
     data.remove('duration_months');
@@ -314,6 +376,10 @@ class SupabaseService {
     await _supabase.from('profiles').update(data).eq('id', profile.uid);
   }
 
+  // ============================================================
+  // GET SPECIFIC PROFILE FIELDS
+  // ============================================================
+
   Future<Map<String, dynamic>?> getProfileFields(
     String profileId,
     String columns,
@@ -325,14 +391,25 @@ class SupabaseService {
         .maybeSingle();
   }
 
+  // ============================================================
+  // GET CURRENT GOAL ID
+  // ============================================================
+
   Future<String?> getCurrentGoalId(String profileId) async {
     final data = await _supabase
         .from('goal_details')
         .select('id')
         .eq('profile_id', profileId)
         .maybeSingle();
+
     return data?['id']?.toString();
   }
+
+  // ============================================================
+  // UPDATE CURRENT GOAL WORKOUT SETTINGS
+  //
+  // THIS IS THE NEW / CORRECT METHOD
+  // ============================================================
 
   Future<void> updateCurrentGoalWorkoutSettings({
     required String profileId,
@@ -342,13 +419,35 @@ class SupabaseService {
     required String fitnessLevel,
     required int workoutDays,
     String? workoutPlace,
+    Map<String, String>? customSplit,
   }) async {
+    // ----------------------------------------------------------
+    // 1. Update Workout Preferences in profiles
+    // ----------------------------------------------------------
+
     await updateProfileFields(profileId, {
       'workout_prefer': workoutPrefer,
+
       'equipment_prefer': equipmentPrefer,
+
       'split': split,
+
+      // Custom split is saved as JSONB.
+      //
+      // If split != Custom:
+      // customSplit will be null and old
+      // custom data will be cleared.
+      //
+      // If split == Custom:
+      // customSplit contains Monday-Sunday.
+      'custom_split': customSplit,
+
       'fitness_level': fitnessLevel,
     });
+
+    // ----------------------------------------------------------
+    // 2. Get Current Goal
+    // ----------------------------------------------------------
 
     final goalDetails = await _supabase
         .from('goal_details')
@@ -361,33 +460,60 @@ class SupabaseService {
     }
 
     final goalId = goalDetails['id'].toString();
+
     final goalName = goalDetails['goal_name']?.toString() ?? '';
 
-    const tables = <String, String>{
+    // ----------------------------------------------------------
+    // 3. Map Goal Name To Goal Table
+    // ----------------------------------------------------------
+
+    const Map<String, String> goalTables = {
       'Lose Weight': 'lose_weight_goals',
+
       'Weight Gain': 'weight_gain_goals',
+
       'Build Muscle': 'build_muscle_goals',
+
       'Strength & Power': 'strength_power_goals',
+
       'Improve Endurance': 'endurance_goals',
+
       'General Fitness': 'general_fitness_goals',
+
       'Athletic Performance': 'athletic_performance_goals',
     };
 
-    final table = tables[goalName];
-    if (table == null) throw Exception('Unsupported goal: $goalName');
+    final table = goalTables[goalName];
 
-    final goalFields = <String, dynamic>{'workout_days': workoutDays};
+    if (table == null) {
+      throw Exception('Unsupported goal: $goalName');
+    }
 
-    // workout_place exists in the General Fitness goal table in the
-    // current database design, not in profiles.
+    // ----------------------------------------------------------
+    // 4. Update Workout Days
+    // ----------------------------------------------------------
+
+    final Map<String, dynamic> goalFields = {'workout_days': workoutDays};
+
+    // workout_place is stored in
+    // general_fitness_goals according
+    // to your current database design.
     if (goalName == 'General Fitness' &&
         workoutPlace != null &&
         workoutPlace.trim().isNotEmpty) {
       goalFields['workout_place'] = workoutPlace.trim();
     }
 
+    // ----------------------------------------------------------
+    // 5. Save Goal Settings
+    // ----------------------------------------------------------
+
     await updateGoalTable(table: table, goalId: goalId, fields: goalFields);
   }
+
+  // ============================================================
+  // UPDATE ONLY WORKOUT DAYS
+  // ============================================================
 
   Future<void> updateCurrentGoalWorkoutDays({
     required String profileId,
@@ -404,19 +530,27 @@ class SupabaseService {
     }
 
     final goalId = goalDetails['id'].toString();
+
     final goalName = goalDetails['goal_name']?.toString() ?? '';
 
-    const tables = <String, String>{
+    const Map<String, String> goalTables = {
       'Lose Weight': 'lose_weight_goals',
+
       'Weight Gain': 'weight_gain_goals',
+
       'Build Muscle': 'build_muscle_goals',
+
       'Strength & Power': 'strength_power_goals',
+
       'Improve Endurance': 'endurance_goals',
+
       'General Fitness': 'general_fitness_goals',
+
       'Athletic Performance': 'athletic_performance_goals',
     };
 
-    final table = tables[goalName];
+    final table = goalTables[goalName];
+
     if (table == null) {
       throw Exception('Unsupported goal: $goalName');
     }
@@ -428,9 +562,17 @@ class SupabaseService {
     );
   }
 
+  // ============================================================
+  // DELETE USER PROFILE
+  // ============================================================
+
   Future<void> deleteUserProfile(String uid) async {
     await _supabase.from('profiles').delete().eq('id', uid);
   }
+
+  // ============================================================
+  // GET OR CREATE GOAL DETAILS
+  // ============================================================
 
   Future<String> getOrCreateGoalDetails({required String goalName}) async {
     final client = Supabase.instance.client;
@@ -470,6 +612,10 @@ class SupabaseService {
     return inserted['id'].toString();
   }
 
+  // ============================================================
+  // UPDATE GOAL TABLE
+  // ============================================================
+
   Future<void> updateGoalTable({
     required String table,
     required String goalId,
@@ -492,18 +638,31 @@ class SupabaseService {
     await client.from(table).upsert(data, onConflict: 'goal_id');
   }
 
+  // ============================================================
+  // SAVE MEAL PLAN
+  // ============================================================
+
   Future<void> saveMealPlan(String uid, Map<String, dynamic> mealPlan) async {
     final generatedAt = DateTime.now();
+
     final expiresAt = generatedAt.add(mealPlanExpiry);
 
     await _supabase.from('meal_plans').upsert({
       'user_id': uid,
+
       'generated_at': generatedAt.toIso8601String(),
+
       'expires_at': expiresAt.toIso8601String(),
+
       'plan': mealPlan,
+
       'is_active': true,
     });
   }
+
+  // ============================================================
+  // GET MEAL PLAN
+  // ============================================================
 
   Future<Map<String, dynamic>?> getMealPlan(String uid) async {
     final response = await _supabase
@@ -515,21 +674,33 @@ class SupabaseService {
         .limit(1)
         .maybeSingle();
 
-    if (response == null) return null;
+    if (response == null) {
+      return null;
+    }
 
     final expiresAt = response['expires_at'];
+
     if (expiresAt != null &&
         DateTime.now().isAfter(DateTime.parse(expiresAt.toString()))) {
       await deactivateMealPlan(uid);
+
       return null;
     }
 
     return Map<String, dynamic>.from(response['plan']);
   }
 
+  // ============================================================
+  // DELETE MEAL PLAN
+  // ============================================================
+
   Future<void> deleteMealPlan(String uid) async {
     await _supabase.from('meal_plans').delete().eq('user_id', uid);
   }
+
+  // ============================================================
+  // DEACTIVATE MEAL PLAN
+  // ============================================================
 
   Future<void> deactivateMealPlan(String uid) async {
     await _supabase
@@ -537,6 +708,10 @@ class SupabaseService {
         .update({'is_active': false})
         .eq('user_id', uid);
   }
+
+  // ============================================================
+  // CHECK MEAL PLAN
+  // ============================================================
 
   Future<bool> hasMealPlan(String uid) async {
     final response = await _supabase
@@ -549,11 +724,16 @@ class SupabaseService {
     return response != null;
   }
 
+  // ============================================================
+  // SAVE WORKOUT PLAN
+  // ============================================================
+
   Future<void> saveWorkoutPlan(
     String uid,
     Map<String, dynamic> workoutPlan,
   ) async {
     final generatedAt = DateTime.now();
+
     final expiresAt = generatedAt.add(workoutPlanExpiry);
 
     final existing = await _supabase
@@ -563,11 +743,15 @@ class SupabaseService {
         .limit(1)
         .maybeSingle();
 
-    final data = {
+    final data = <String, dynamic>{
       'user_id': uid,
+
       'generated_at': generatedAt.toIso8601String(),
+
       'expires_at': expiresAt.toIso8601String(),
+
       'plan': workoutPlan,
+
       'is_active': true,
     };
 
@@ -576,8 +760,11 @@ class SupabaseService {
           .from('workout_plans')
           .update({
             'generated_at': generatedAt.toIso8601String(),
+
             'expires_at': expiresAt.toIso8601String(),
+
             'plan': workoutPlan,
+
             'is_active': true,
           })
           .eq('id', existing['id']);
@@ -585,6 +772,10 @@ class SupabaseService {
       await _supabase.from('workout_plans').insert(data);
     }
   }
+
+  // ============================================================
+  // GET WORKOUT PLAN
+  // ============================================================
 
   Future<Map<String, dynamic>?> getWorkoutPlan(String uid) async {
     final response = await _supabase
@@ -596,21 +787,33 @@ class SupabaseService {
         .limit(1)
         .maybeSingle();
 
-    if (response == null) return null;
+    if (response == null) {
+      return null;
+    }
 
     final expiresAt = response['expires_at'];
+
     if (expiresAt != null &&
         DateTime.now().isAfter(DateTime.parse(expiresAt.toString()))) {
       await deactivateWorkoutPlan(uid);
+
       return null;
     }
 
     return Map<String, dynamic>.from(response['plan']);
   }
 
+  // ============================================================
+  // DELETE WORKOUT PLAN
+  // ============================================================
+
   Future<void> deleteWorkoutPlan(String uid) async {
     await _supabase.from('workout_plans').delete().eq('user_id', uid);
   }
+
+  // ============================================================
+  // DEACTIVATE WORKOUT PLAN
+  // ============================================================
 
   Future<void> deactivateWorkoutPlan(String uid) async {
     await _supabase
@@ -618,6 +821,10 @@ class SupabaseService {
         .update({'is_active': false})
         .eq('user_id', uid);
   }
+
+  // ============================================================
+  // CHECK WORKOUT PLAN
+  // ============================================================
 
   Future<bool> hasWorkoutPlan(String uid) async {
     final response = await _supabase
@@ -629,6 +836,10 @@ class SupabaseService {
 
     return response != null;
   }
+
+  // ============================================================
+  // CHECK PLAN EXPIRY
+  // ============================================================
 
   bool isPlanExpired(Map<String, dynamic> plan) {
     final expiresAt = plan['expiresAt'] ?? plan['expires_at'];
@@ -645,6 +856,10 @@ class SupabaseService {
       return true;
     }
   }
+
+  // ============================================================
+  // GET REMAINING PLAN TIME
+  // ============================================================
 
   Duration getRemainingTime(Map<String, dynamic> plan) {
     final expiresAt = plan['expiresAt'] ?? plan['expires_at'];
@@ -664,9 +879,15 @@ class SupabaseService {
     }
   }
 
+  // ============================================================
+  // FORMAT REMAINING TIME
+  // ============================================================
+
   String formatRemainingTime(Duration duration) {
     final days = duration.inDays;
+
     final hours = duration.inHours % 24;
+
     final minutes = duration.inMinutes % 60;
 
     if (days > 0) {
@@ -681,6 +902,10 @@ class SupabaseService {
 
     return "$minutes Min";
   }
+
+  // ============================================================
+  // MEAL PLAN PROGRESS
+  // ============================================================
 
   double getPlanProgress(Map<String, dynamic> plan) {
     final createdAt =
@@ -708,6 +933,10 @@ class SupabaseService {
     }
   }
 
+  // ============================================================
+  // WORKOUT PLAN PROGRESS
+  // ============================================================
+
   double getWorkoutProgress(DateTime createdAt) {
     final expiry = createdAt.add(workoutPlanExpiry);
 
@@ -715,6 +944,10 @@ class SupabaseService {
 
     return (remaining / workoutPlanExpiry.inSeconds).clamp(0.0, 1.0);
   }
+
+  // ============================================================
+  // WORKOUT PLAN REMAINING TIME
+  // ============================================================
 
   Duration getWorkoutRemaining(DateTime createdAt) {
     final expiry = createdAt.add(workoutPlanExpiry);
@@ -724,9 +957,15 @@ class SupabaseService {
     return remaining.isNegative ? Duration.zero : remaining;
   }
 
+  // ============================================================
+  // FORMAT WORKOUT REMAINING TIME
+  // ============================================================
+
   String formatWorkoutRemaining(Duration duration) {
     final days = duration.inDays;
+
     final hours = duration.inHours % 24;
+
     final minutes = duration.inMinutes % 60;
 
     if (days > 0) {
@@ -742,6 +981,10 @@ class SupabaseService {
     return "$minutes Min";
   }
 
+  // ============================================================
+  // GENERATE AND SAVE MEAL PLAN
+  // ============================================================
+
   Future<void> generateAndSaveMealPlan(String uid) async {
     final profile = await getUserProfile(uid);
 
@@ -752,19 +995,29 @@ class SupabaseService {
     final mealPlan = await AIService().generateMealPlan(profile);
 
     final generatedAt = DateTime.now();
+
     final expiresAt = generatedAt.add(mealPlanExpiry);
 
     mealPlan["generatedAt"] = generatedAt.toIso8601String();
+
     mealPlan["expiresAt"] = expiresAt.toIso8601String();
 
     await _supabase.from('meal_plans').upsert({
       'user_id': uid,
+
       'generated_at': generatedAt.toIso8601String(),
+
       'expires_at': expiresAt.toIso8601String(),
+
       'plan': mealPlan,
+
       'is_active': true,
     });
   }
+
+  // ============================================================
+  // GENERATE AND SAVE WORKOUT PLAN
+  // ============================================================
 
   Future<void> generateAndSaveWorkoutPlan(String uid) async {
     try {
@@ -781,26 +1034,38 @@ class SupabaseService {
       }
 
       final generatedAt = DateTime.now();
+
       final expiresAt = generatedAt.add(workoutPlanExpiry);
 
       final updatedWorkoutPlan = {
         ...workoutPlan,
+
         'generatedAt': generatedAt.toIso8601String(),
+
         'expiresAt': expiresAt.toIso8601String(),
       };
 
       await saveWorkoutPlan(uid, updatedWorkoutPlan);
     } catch (e, stackTrace) {
       print('======================================');
+
       print('WORKOUT GENERATION FAILED');
+
       print('ERROR: $e');
+
       print('STACK TRACE:');
+
       print(stackTrace);
+
       print('======================================');
 
       rethrow;
     }
   }
+
+  // ============================================================
+  // GENERATE AND SAVE BOTH PLANS
+  // ============================================================
 
   Future<void> generateAndSavePlans(String uid) async {
     final profile = await getUserProfile(uid);
@@ -809,25 +1074,35 @@ class SupabaseService {
       throw Exception("Profile not found.");
     }
 
-    // Generate and save meal independently.
+    // ----------------------------------------------------------
+    // Generate Meal Plan
+    // ----------------------------------------------------------
+
     final mealPlan = await AIService().generateMealPlan(profile);
 
     final generatedAt = DateTime.now();
 
     final updatedMealPlan = {
       ...mealPlan,
+
       "generatedAt": generatedAt.toIso8601String(),
+
       "expiresAt": generatedAt.add(mealPlanExpiry).toIso8601String(),
     };
 
     await saveMealPlan(uid, updatedMealPlan);
 
-    // Generate and save workout independently.
+    // ----------------------------------------------------------
+    // Generate Workout Plan
+    // ----------------------------------------------------------
+
     final workoutPlan = await WorkoutAIService().generateWorkoutPlan(profile);
 
     final updatedWorkoutPlan = {
       ...workoutPlan,
+
       "generatedAt": generatedAt.toIso8601String(),
+
       "expiresAt": generatedAt.add(workoutPlanExpiry).toIso8601String(),
     };
 

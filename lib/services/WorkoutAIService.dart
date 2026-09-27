@@ -12,14 +12,13 @@ class WorkoutAIService {
 
   static const String _model = 'gemini-2.5-flash';
 
-  // The new response is intentionally compact, so 15k tokens is
-  // normally more than enough.
   static const int _maxOutputTokens = 50000;
 
   static const Duration _requestTimeout = Duration(minutes: 3);
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // GENERATE WORKOUT PLAN
   Future<Map<String, dynamic>> generateWorkoutPlan(
     UserProfileModel profile,
   ) async {
@@ -40,9 +39,12 @@ class WorkoutAIService {
     final catalogMap = <String, Map<String, String>>{};
 
     for (final exercise in catalog) {
-      final normalized = exercise['normalized_name']?.trim() ?? '';
+      final normalized =
+          exercise['normalized_name']?.trim().toLowerCase() ?? '';
 
-      if (normalized.isEmpty) continue;
+      if (normalized.isEmpty) {
+        continue;
+      }
 
       catalogMap[normalized] = exercise;
     }
@@ -53,15 +55,36 @@ class WorkoutAIService {
 
     final workoutPlan = _parseGeminiResponse(response);
 
+    // ----------------------------------------------------------
+    // IMPORTANT
+    // Repair obvious catalog-name formatting/alias problems
+    // BEFORE validation.
+    // ----------------------------------------------------------
+
+    _resolveGeminiCatalogNames(workoutPlan, catalogMap);
+
+    // ----------------------------------------------------------
+    // Validate after names have been resolved.
+    // ----------------------------------------------------------
+
     _validateWorkoutPlan(workoutPlan, catalogMap);
 
+    // ----------------------------------------------------------
+    // Generate substitutes automatically from Supabase.
+    // ----------------------------------------------------------
+
     _generateSubstituteExercises(workoutPlan, catalogMap);
+
+    // ----------------------------------------------------------
+    // Add ExerciseDB/Supabase information.
+    // ----------------------------------------------------------
 
     _enrichWorkoutPlan(workoutPlan, catalogMap);
 
     return workoutPlan;
   }
 
+  // GEMINI REQUEST
   Future<http.Response> _callGemini(String prompt) async {
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/'
@@ -98,9 +121,11 @@ class WorkoutAIService {
         stopwatch.stop();
 
         print(
-          'Workout Gemini attempt $attempt '
-          'completed in ${stopwatch.elapsed.inSeconds}s '
-          'with status ${response.statusCode}.',
+          'Workout Gemini attempt '
+          '$attempt completed in '
+          '${stopwatch.elapsed.inSeconds}s '
+          'with status '
+          '${response.statusCode}.',
         );
 
         lastResponse = response;
@@ -116,12 +141,14 @@ class WorkoutAIService {
             response.statusCode == 504) {
           if (attempt < 2) {
             await Future.delayed(const Duration(seconds: 3));
+
             continue;
           }
         }
 
         throw Exception(
-          'Gemini Error (${response.statusCode}): '
+          'Gemini Error '
+          '(${response.statusCode}): '
           '${response.body}',
         );
       } on http.ClientException catch (e) {
@@ -136,8 +163,9 @@ class WorkoutAIService {
         if (e.toString().contains('TimeoutException')) {
           if (attempt == 2) {
             throw Exception(
-              'Workout generation timed out after '
-              '${_requestTimeout.inMinutes} minutes.',
+              'Workout generation timed out '
+              'after ${_requestTimeout.inMinutes} '
+              'minutes.',
             );
           }
 
@@ -156,14 +184,21 @@ class WorkoutAIService {
     );
   }
 
+  // GET EXERCISE CATALOG
   Future<List<Map<String, String>>> _getExerciseCatalog() async {
     try {
       final response = await _supabase
           .from('exercise_catalog')
           .select(
-            'exercise_name, normalized_name, exercise_db_id, '
-            'gif_url, body_parts, equipments, target_muscles, '
-            'secondary_muscles, instructions',
+            'exercise_name, '
+            'normalized_name, '
+            'exercise_db_id, '
+            'gif_url, '
+            'body_parts, '
+            'equipments, '
+            'target_muscles, '
+            'secondary_muscles, '
+            'instructions',
           )
           .order('normalized_name');
 
@@ -172,7 +207,8 @@ class WorkoutAIService {
       final Set<String> seen = {};
 
       for (final row in response) {
-        final normalized = row['normalized_name']?.toString().trim() ?? '';
+        final normalized =
+            row['normalized_name']?.toString().trim().toLowerCase() ?? '';
 
         if (normalized.isEmpty) {
           continue;
@@ -186,26 +222,41 @@ class WorkoutAIService {
 
         catalog.add({
           'normalized_name': normalized,
+
           'exercise_name': row['exercise_name']?.toString().trim() ?? '',
+
           'exercise_db_id': row['exercise_db_id']?.toString().trim() ?? '',
+
           'gif_url': row['gif_url']?.toString().trim() ?? '',
+
           'body_parts': _encodeCatalogList(row['body_parts']),
+
           'equipments': _encodeCatalogList(row['equipments']),
+
           'target_muscles': _encodeCatalogList(row['target_muscles']),
+
           'secondary_muscles': _encodeCatalogList(row['secondary_muscles']),
+
           'instructions': _encodeCatalogList(row['instructions']),
         });
       }
 
+      print(
+        'Exercise catalog loaded: '
+        '${catalog.length}',
+      );
+
       return catalog;
     } catch (e) {
       throw Exception(
-        'Failed to load exercise catalog from Supabase.\n'
+        'Failed to load exercise catalog '
+        'from Supabase.\n'
         'Error: $e',
       );
     }
   }
 
+  // ENCODE SUPABASE LIST
   String _encodeCatalogList(dynamic value) {
     if (value is List) {
       return jsonEncode(
@@ -244,6 +295,575 @@ class WorkoutAIService {
     );
   }
 
+  // NORMALIZE EXERCISE NAME
+  String _normalizeExerciseName(String value) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replaceAll('°', ' degrees ')
+        .replaceAll(RegExp(r'\([^)]*\)'), ' ')
+        .replaceAll(RegExp(r'[\[\],:/\\-]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  // RESOLVE GEMINI EXERCISE NAMES
+  void _resolveGeminiCatalogNames(
+    Map<String, dynamic> plan,
+    Map<String, Map<String, String>> catalog,
+  ) {
+    final days = plan['days'];
+
+    if (days is! Map) {
+      return;
+    }
+
+    for (final dayEntry in days.entries) {
+      final day = dayEntry.value;
+
+      if (day is! Map) {
+        continue;
+      }
+
+      final workout = day['workout'];
+
+      if (workout is! List) {
+        continue;
+      }
+
+      for (final rawExercise in workout) {
+        if (rawExercise is! Map) {
+          continue;
+        }
+
+        final generatedName =
+            rawExercise['catalogName']?.toString().trim() ?? '';
+
+        if (generatedName.isEmpty) {
+          continue;
+        }
+
+        final resolved = _resolveSingleCatalogName(generatedName, catalog);
+
+        if (resolved != null) {
+          rawExercise['catalogName'] = resolved;
+        }
+      }
+    }
+  }
+
+  // RESOLVE ONE NAME
+  String? _resolveSingleCatalogName(
+    String generatedName,
+    Map<String, Map<String, String>> catalog,
+  ) {
+    final original = generatedName.trim().toLowerCase();
+
+    if (original.isEmpty) {
+      return null;
+    }
+
+    // ==========================================================
+    // 1. EXACT MATCH
+    // ==========================================================
+
+    if (catalog.containsKey(original)) {
+      return original;
+    }
+
+    // ==========================================================
+    // 2. NORMALIZED MATCH
+    // ==========================================================
+
+    final normalized = _normalizeExerciseName(original);
+
+    for (final entry in catalog.entries) {
+      final candidate = _normalizeExerciseName(entry.key);
+
+      if (candidate == normalized) {
+        print(
+          'Exercise normalized match: '
+          '$generatedName -> ${entry.key}',
+        );
+
+        return entry.key;
+      }
+    }
+
+    // ==========================================================
+    // 3. EXPLICIT ALIAS MATCH
+    // ==========================================================
+
+    final aliasCandidates = _exerciseAliases(normalized);
+
+    for (final alias in aliasCandidates) {
+      final aliasNormalized = _normalizeExerciseName(alias);
+
+      // First check exact catalog key.
+      if (catalog.containsKey(aliasNormalized)) {
+        print(
+          'Exercise alias resolved: '
+          '$generatedName -> $aliasNormalized',
+        );
+
+        return aliasNormalized;
+      }
+
+      // Then compare normalized catalog names.
+      for (final entry in catalog.entries) {
+        final candidate = _normalizeExerciseName(entry.key);
+
+        if (candidate == aliasNormalized) {
+          print(
+            'Exercise alias resolved: '
+            '$generatedName -> ${entry.key}',
+          );
+
+          return entry.key;
+        }
+      }
+    }
+
+    // ==========================================================
+    // 4. PREFIX MATCH
+    // ==========================================================
+
+    final prefixMatches = <String>[];
+
+    for (final entry in catalog.entries) {
+      final candidate = _normalizeExerciseName(entry.key);
+
+      if (candidate.startsWith(normalized)) {
+        prefixMatches.add(entry.key);
+      }
+    }
+
+    if (prefixMatches.length == 1) {
+      print(
+        'Exercise prefix resolved: '
+        '$generatedName -> ${prefixMatches.first}',
+      );
+
+      return prefixMatches.first;
+    }
+
+    // ==========================================================
+    // 5. CONTAINS MATCH
+    // ==========================================================
+
+    final containsMatches = <String>[];
+
+    for (final entry in catalog.entries) {
+      final candidate = _normalizeExerciseName(entry.key);
+
+      if (candidate.contains(normalized)) {
+        containsMatches.add(entry.key);
+      }
+    }
+
+    if (containsMatches.length == 1) {
+      print(
+        'Exercise contains resolved: '
+        '$generatedName -> ${containsMatches.first}',
+      );
+
+      return containsMatches.first;
+    }
+
+    // ==========================================================
+    // 6. STRONG TOKEN MATCH
+    // ==========================================================
+
+    final generatedTokens = normalized
+        .split(' ')
+        .where((word) => word.length >= 3)
+        .toSet();
+
+    if (generatedTokens.isEmpty) {
+      return null;
+    }
+
+    final scored = <String, double>{};
+
+    for (final entry in catalog.entries) {
+      final candidate = _normalizeExerciseName(entry.key);
+
+      final candidateTokens = candidate
+          .split(' ')
+          .where((word) => word.length >= 3)
+          .toSet();
+
+      if (candidateTokens.isEmpty) {
+        continue;
+      }
+
+      final overlap = generatedTokens.intersection(candidateTokens).length;
+
+      if (overlap == 0) {
+        continue;
+      }
+
+      double score = overlap.toDouble();
+
+      // Strong bonus if the generated phrase appears
+      // inside the catalog name.
+      if (candidate.contains(normalized)) {
+        score += 3;
+      }
+
+      // Strong bonus for exact token count.
+      if (candidateTokens.length == generatedTokens.length) {
+        score += 1;
+      }
+
+      scored[entry.key] = score;
+    }
+
+    if (scored.isEmpty) {
+      return null;
+    }
+
+    final sorted = scored.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final bestScore = sorted.first.value;
+
+    final best = sorted.where((entry) => entry.value == bestScore).toList();
+
+    // Only accept a strong unique result.
+    if (best.length == 1 && bestScore >= 3) {
+      print(
+        'Exercise fuzzy resolved: '
+        '$generatedName -> ${best.first.key}',
+      );
+
+      return best.first.key;
+    }
+
+    print(
+      'Could not safely resolve exercise: '
+      '$generatedName',
+    );
+
+    return null;
+  }
+
+  List<String> _exerciseAliases(String normalized) {
+    final aliases = <String>[];
+
+    void add(String value) {
+      final normalizedValue = _normalizeExerciseName(value);
+
+      if (normalizedValue.isNotEmpty && !aliases.contains(normalizedValue)) {
+        aliases.add(normalizedValue);
+      }
+    }
+
+    // ==========================================================
+    // SHOULDER PRESS
+    // ==========================================================
+
+    if (normalized == 'dumbbell shoulder press') {
+      add('seated dumbbell shoulder press');
+      add('dumbbell shoulder press seated');
+      add('dumbbell shoulder press (seated)');
+    }
+
+    if (normalized == 'seated shoulder press') {
+      add('seated dumbbell shoulder press');
+      add('dumbbell shoulder press seated');
+      add('dumbbell shoulder press (seated)');
+    }
+
+    if (normalized == 'shoulder press dumbbell') {
+      add('seated dumbbell shoulder press');
+      add('dumbbell shoulder press seated');
+      add('dumbbell shoulder press (seated)');
+    }
+
+    if (normalized == 'dumbbell overhead press') {
+      add('seated dumbbell shoulder press');
+      add('dumbbell shoulder press seated');
+      add('dumbbell shoulder press (seated)');
+    }
+
+    // ==========================================================
+    // BENCH PRESS
+    // ==========================================================
+
+    if (normalized == 'barbell bench press') {
+      add('flat bench press - barbell');
+      add('flat bench press barbell');
+    }
+
+    if (normalized == 'dumbbell bench press') {
+      add('flat bench press - dumbbell');
+      add('flat bench press dumbbell');
+    }
+
+    if (normalized == 'incline barbell bench press') {
+      add('incline bench press - barbell');
+      add('incline bench press barbell');
+    }
+
+    if (normalized == 'incline dumbbell bench press') {
+      add('incline bench press - dumbbell');
+      add('incline bench press dumbbell');
+    }
+
+    // ==========================================================
+    // SQUAT
+    // ==========================================================
+
+    if (normalized == 'barbell squat') {
+      add('barbell full squat');
+    }
+
+    // ==========================================================
+    // PULL UP
+    // ==========================================================
+
+    if (normalized == 'pull up') {
+      add('pull-up');
+    }
+
+    if (normalized == 'pullup') {
+      add('pull-up');
+    }
+
+    // ==========================================================
+    // PUSH UP
+    // ==========================================================
+
+    if (normalized == 'push up') {
+      add('push-up');
+    }
+
+    if (normalized == 'pushup') {
+      add('push-up');
+    }
+
+    // ==========================================================
+    // BICEPS
+    // ==========================================================
+
+    if (normalized == 'hammer curl') {
+      add('dumbbell hammer curl');
+    }
+
+    if (normalized == 'barbell curl') {
+      add('barbell biceps curl');
+    }
+
+    // ==========================================================
+    // TRICEPS
+    // ==========================================================
+
+    if (normalized == 'tricep pushdown') {
+      add('triceps pushdown');
+      add('cable triceps pushdown');
+      add('triceps pressdown');
+    }
+
+    if (normalized == 'triceps pushdown') {
+      add('tricep pushdown');
+      add('cable triceps pushdown');
+      add('triceps pressdown');
+    }
+
+    // ==========================================================
+    // LAT PULLDOWN
+    // ==========================================================
+
+    if (normalized == 'lat pulldown') {
+      add('cable lat pulldown');
+    }
+
+    // ==========================================================
+    // ROW
+    // ==========================================================
+
+    if (normalized == 'seated row') {
+      add('seated cable row');
+    }
+
+    // ==========================================================
+    // CALF
+    // ==========================================================
+
+    if (normalized == 'calf raise') {
+      add('standing calf raise');
+      add('seated calf raise');
+    }
+
+    // ==========================================================
+    // HAMSTRING
+    // ==========================================================
+
+    if (normalized == 'hamstring curl') {
+      add('lying leg curl');
+      add('seated leg curl');
+    }
+
+    return aliases;
+  }
+
+  // KNOWN EXERCISE ALIASES
+  String? _knownExerciseAlias(String normalized) {
+    const aliases = <String, List<String>>{
+      // ==========================================================
+      // SHOULDER
+      // ==========================================================
+      'dumbbell shoulder press': [
+        'seated dumbbell shoulder press',
+        'dumbbell shoulder press seated',
+        'dumbbell shoulder press (seated)',
+      ],
+
+      'seated shoulder press': [
+        'seated dumbbell shoulder press',
+        'dumbbell shoulder press seated',
+        'dumbbell shoulder press (seated)',
+      ],
+
+      'seated dumbbell press': [
+        'seated dumbbell shoulder press',
+        'dumbbell shoulder press seated',
+        'dumbbell shoulder press (seated)',
+      ],
+
+      'dumbbell overhead press': [
+        'seated dumbbell shoulder press',
+        'dumbbell shoulder press seated',
+        'dumbbell shoulder press (seated)',
+      ],
+
+      'shoulder press dumbbell': [
+        'seated dumbbell shoulder press',
+        'dumbbell shoulder press seated',
+        'dumbbell shoulder press (seated)',
+      ],
+
+      // ==========================================================
+      // BENCH PRESS
+      // ==========================================================
+      'barbell bench press': [
+        'flat bench press - barbell',
+        'barbell bench press',
+      ],
+
+      'dumbbell bench press': [
+        'flat bench press - dumbbell',
+        'dumbbell bench press',
+      ],
+
+      'incline barbell bench press': ['incline bench press - barbell'],
+
+      'incline dumbbell bench press': ['incline bench press - dumbbell'],
+
+      // ==========================================================
+      // SQUAT
+      // ==========================================================
+      'barbell squat': ['barbell full squat', 'barbell squat'],
+
+      'squat': ['barbell full squat', 'barbell squat'],
+
+      // ==========================================================
+      // PULL UPS
+      // ==========================================================
+      'pull up': ['pull-up'],
+
+      'pullup': ['pull-up'],
+
+      // ==========================================================
+      // PUSH UPS
+      // ==========================================================
+      'push up': ['push-up'],
+
+      'pushup': ['push-up'],
+
+      // ==========================================================
+      // BICEPS
+      // ==========================================================
+      'hammer curl': ['dumbbell hammer curl', 'hammer curl'],
+
+      'dumbbell hammer curl': ['dumbbell hammer curl', 'hammer curl'],
+
+      'barbell curl': ['barbell biceps curl', 'barbell curl'],
+
+      'barbell biceps curl': ['barbell biceps curl', 'barbell curl'],
+
+      // ==========================================================
+      // TRICEPS
+      // ==========================================================
+      'tricep pushdown': [
+        'triceps pushdown',
+        'cable triceps pushdown',
+        'triceps pressdown',
+      ],
+
+      'triceps pushdown': [
+        'triceps pushdown',
+        'cable triceps pushdown',
+        'triceps pressdown',
+      ],
+
+      'triceps pressdown': [
+        'triceps pushdown',
+        'cable triceps pushdown',
+        'triceps pressdown',
+      ],
+
+      // ==========================================================
+      // LAT PULLDOWN
+      // ==========================================================
+      'lat pulldown': ['lat pulldown', 'cable lat pulldown'],
+
+      'cable lat pulldown': ['cable lat pulldown', 'lat pulldown'],
+
+      // ==========================================================
+      // ROW
+      // ==========================================================
+      'seated row': ['seated cable row', 'seated row'],
+
+      'seated cable row': ['seated cable row', 'seated row'],
+
+      // ==========================================================
+      // CALVES
+      // ==========================================================
+      'calf raise': ['standing calf raise', 'seated calf raise', 'calf raise'],
+
+      'standing calf raise': ['standing calf raise', 'calf raise'],
+
+      // ==========================================================
+      // LEG
+      // ==========================================================
+      'leg extension': ['leg extension'],
+
+      'hamstring curl': ['lying leg curl', 'seated leg curl', 'leg curl'],
+    };
+
+    final candidates = aliases[normalized];
+
+    if (candidates == null) {
+      return null;
+    }
+
+    for (final candidate in candidates) {
+      final candidateNormalized = _normalizeExerciseName(candidate);
+
+      // The alias itself must actually exist in the
+      // current Supabase catalog.
+      returnCandidate:
+      if (candidateNormalized.isNotEmpty) {
+        return candidateNormalized;
+      }
+    }
+
+    return null;
+  }
+
+  // PARSE GEMINI RESPONSE
   Map<String, dynamic> _parseGeminiResponse(http.Response response) {
     try {
       final data = Map<String, dynamic>.from(jsonDecode(response.body));
@@ -269,8 +889,9 @@ class WorkoutAIService {
 
       if (finishReason == 'MAX_TOKENS') {
         throw Exception(
-          'Gemini stopped because the response reached '
-          'the output limit. The workout response was incomplete.',
+          'Gemini stopped because the '
+          'response reached the output limit. '
+          'The workout response was incomplete.',
         );
       }
 
@@ -307,7 +928,10 @@ class WorkoutAIService {
       try {
         decoded = jsonDecode(cleaned);
       } catch (e) {
-        print('Gemini JSON length: ${cleaned.length}');
+        print(
+          'Gemini JSON length: '
+          '${cleaned.length}',
+        );
 
         final previewStart = cleaned.length > 300
             ? cleaned.substring(cleaned.length - 300)
@@ -338,6 +962,7 @@ class WorkoutAIService {
     }
   }
 
+  // CLEAN JSON
   String _cleanJson(String text) {
     var cleaned = text.trim();
 
@@ -354,33 +979,46 @@ class WorkoutAIService {
     return cleaned.trim();
   }
 
+  // GENERATE SUBSTITUTE EXERCISES
   void _generateSubstituteExercises(
     Map<String, dynamic> plan,
     Map<String, Map<String, String>> catalog,
   ) {
     final days = plan['days'];
 
-    if (days is! Map) return;
+    if (days is! Map) {
+      return;
+    }
 
     for (final dayEntry in days.entries) {
       final day = dayEntry.value;
 
-      if (day is! Map) continue;
+      if (day is! Map) {
+        continue;
+      }
 
       final workout = day['workout'];
 
-      if (workout is! List) continue;
+      if (workout is! List) {
+        continue;
+      }
 
       for (final rawExercise in workout) {
-        if (rawExercise is! Map) continue;
+        if (rawExercise is! Map) {
+          continue;
+        }
 
         final mainName = rawExercise['catalogName']?.toString().trim() ?? '';
 
-        if (mainName.isEmpty) continue;
+        if (mainName.isEmpty) {
+          continue;
+        }
 
         final mainData = catalog[mainName];
 
-        if (mainData == null) continue;
+        if (mainData == null) {
+          continue;
+        }
 
         final mainTargetMuscles = _decodeList(mainData['target_muscles']);
 
@@ -392,10 +1030,13 @@ class WorkoutAIService {
 
         for (final entry in catalog.entries) {
           final candidateName = entry.key;
+
           final candidate = entry.value;
 
           // Never use the same exercise.
-          if (candidateName == mainName) continue;
+          if (candidateName == mainName) {
+            continue;
+          }
 
           final candidateTargetMuscles = _decodeList(
             candidate['target_muscles'],
@@ -407,7 +1048,7 @@ class WorkoutAIService {
 
           int score = 0;
 
-          // Same target muscle = strong match.
+          // Same target muscle.
           if (_hasOverlap(mainTargetMuscles, candidateTargetMuscles)) {
             score += 5;
           }
@@ -430,9 +1071,9 @@ class WorkoutAIService {
           }
         }
 
-        // Highest-scoring alternatives first.
         candidates.sort((a, b) {
           final scoreA = int.tryParse(a['_score'] ?? '0') ?? 0;
+
           final scoreB = int.tryParse(b['_score'] ?? '0') ?? 0;
 
           return scoreB.compareTo(scoreA);
@@ -440,10 +1081,26 @@ class WorkoutAIService {
 
         final selected = <Map<String, String>>[];
 
-        for (final candidate in candidates) {
-          if (selected.length >= 2) break;
+        final used = <String>{};
 
-          selected.add({'catalogName': candidate['catalogName']!});
+        for (final candidate in candidates) {
+          if (selected.length >= 2) {
+            break;
+          }
+
+          final name = candidate['catalogName'];
+
+          if (name == null) {
+            continue;
+          }
+
+          if (used.contains(name)) {
+            continue;
+          }
+
+          used.add(name);
+
+          selected.add({'catalogName': name});
         }
 
         rawExercise['substituteExercises'] = selected;
@@ -451,6 +1108,7 @@ class WorkoutAIService {
     }
   }
 
+  // OVERLAP
   bool _hasOverlap(List<String> first, List<String> second) {
     if (first.isEmpty || second.isEmpty) {
       return false;
@@ -467,6 +1125,7 @@ class WorkoutAIService {
     return false;
   }
 
+  // VALIDATE WORKOUT PLAN
   void _validateWorkoutPlan(
     Map<String, dynamic> plan,
     Map<String, Map<String, String>> catalog,
@@ -489,13 +1148,19 @@ class WorkoutAIService {
 
     for (final dayName in requiredDays) {
       if (!days.containsKey(dayName)) {
-        throw Exception('Workout plan is missing $dayName.');
+        throw Exception(
+          'Workout plan is missing '
+          '$dayName.',
+        );
       }
 
       final day = days[dayName];
 
       if (day is! Map) {
-        throw Exception('Invalid data for $dayName.');
+        throw Exception(
+          'Invalid data for '
+          '$dayName.',
+        );
       }
 
       final isRestDay = day['restDay'] == true;
@@ -505,8 +1170,9 @@ class WorkoutAIService {
       if (isRestDay) {
         if (workout is List && workout.isNotEmpty) {
           throw Exception(
-            '$dayName is marked as rest day '
-            'but contains exercises.',
+            '$dayName is marked as '
+            'rest day but contains '
+            'exercises.',
           );
         }
 
@@ -514,24 +1180,35 @@ class WorkoutAIService {
       }
 
       if (workout is! List) {
-        throw Exception('$dayName has no valid workout list.');
+        throw Exception(
+          '$dayName has no valid '
+          'workout list.',
+        );
       }
 
       for (final exercise in workout) {
         if (exercise is! Map) {
-          throw Exception('Invalid exercise on $dayName.');
+          throw Exception(
+            'Invalid exercise on '
+            '$dayName.',
+          );
         }
 
         final catalogName = exercise['catalogName']?.toString().trim() ?? '';
 
         if (catalogName.isEmpty) {
-          throw Exception('Missing catalogName on $dayName.');
+          throw Exception(
+            'Missing catalogName '
+            'on $dayName.',
+          );
         }
 
+        // At this point the name should already
+        // be resolved.
         if (!catalog.containsKey(catalogName)) {
           throw Exception(
-            'Gemini returned an exercise that does '
-            'not exist in Supabase:\n'
+            'Exercise could not be '
+            'matched with Supabase:\n'
             '$catalogName\n'
             'Day: $dayName',
           );
@@ -540,6 +1217,7 @@ class WorkoutAIService {
     }
   }
 
+  // ENRICH WORKOUT PLAN
   void _enrichWorkoutPlan(
     Map<String, dynamic> plan,
     Map<String, Map<String, String>> catalog,
@@ -633,6 +1311,7 @@ class WorkoutAIService {
     }
   }
 
+  // DECODE LIST
   List<String> _decodeList(String? value) {
     if (value == null || value.trim().isEmpty) {
       return [];
@@ -652,6 +1331,7 @@ class WorkoutAIService {
     return [];
   }
 
+  // GEMINI PROMPT
   String _buildPrompt(UserProfileModel profile, List<String> catalogNames) {
     final catalog = jsonEncode(catalogNames);
 
@@ -693,54 +1373,188 @@ bodyType=${profile.bodyType}
 bodyGoal=${profile.bodyGoal}
 experience=${profile.fitnessLevel}
 
-Use only fields relevant to the selected goal. Respect experience, available equipment, workout location, selected days, recovery and user preferences.
+Use only fields relevant to the selected goal.
+
+Respect:
+- fitness level
+- available equipment
+- workout location
+- selected workout days
+- recovery
+- user preferences
+- workout split
+- user's goal
 
 Create exactly these seven days:
-Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
-in the same sequence of days
 
-Only the user's selected workout days may contain workouts. Other days must have restDay=true and workout=[].
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+Sunday
 
-Programming must be realistic and evidence-based. Consider goal, volume, intensity, frequency, recovery, exercise order, progressive overload and movement balance. Avoid unsafe or unnecessarily advanced programming.
+Only the user's selected workout days may contain workouts.
 
-CATALOG RULE:
-Every main exercise and every alternative MUST use an exact catalogName from this list. Never invent, rewrite, shorten or modify catalogName.
+All other days must have:
 
-CATALOG:
-$catalog
-
-For every workout exercise return ONLY:
-catalogName, sets, reps, duration, rest, tempo, difficulty, instructions, precautions, commonMistakes, substituteExercises, tips.
-Keep text short:
-instructions: 2-3 short items
-precautions: 0-2 short items
-commonMistakes: 0-2 short items
-tips: 0-2 short items
-
-DO NOT generate substituteExercises.
-For every exercise, return:
-"substituteExercises": []
-The application will automatically select exactly two substitute exercises
-
-from the Supabase exercise catalog after Gemini responds.Do NOT generate exercise IDs, GIF URLs, body parts, target muscles, secondary muscles, equipment or database instructions. Supabase supplies those.
-Warm-up, stretching and cooldown should also be concise.
-Every day needs one short scientificEvidence statement based on accepted training principles. Do not invent studies, researchers, statistics or citations.
-For the upper split give atleast 2-3 exercise of each upper body part (chest, back, shoulder, bicep, tricep)
-For the lower split give atleast 2-3 exercise of each lower body part (harmstring, cords and calfs)
-For the cardio split give exercise of body weight cardio, machine cardio (tradmill, elliptical, cycling) and cross fit cardio 
-
-Rest days:
 restDay=true
 workout=[]
-activity, recoveryTips, stretching, notes should be concise.
+
+Programming must be realistic and evidence-based.
+
+Consider:
+- goal
+- volume
+- intensity
+- frequency
+- recovery
+- exercise order
+- progressive overload
+- movement balance
+
+Avoid unsafe or unnecessarily advanced programming.
+
+====================================================
+STRICT CATALOG RULE
+====================================================
+
+Every main exercise MUST use a catalogName copied EXACTLY from the supplied catalog.
+
+DO NOT:
+- invent an exercise
+- shorten an exercise name
+- paraphrase an exercise name
+- remove words
+- change punctuation
+- replace the catalog name with a generic name
+- create your own exercise name
+
+For example:
+
+WRONG:
+"sled 45"
+
+WRONG:
+"leg press"
+
+WRONG:
+"45 degree leg press"
+
+ONLY use an exact catalog value such as:
+"sled 45° leg press"
+
+The catalogName must be copied character-for-character from the supplied catalog.
+
+====================================================
+CATALOG
+====================================================
+
+$catalog
+
+====================================================
+WORKOUT EXERCISE OUTPUT
+====================================================
+
+For every workout exercise return ONLY:
+
+catalogName
+sets
+reps
+duration
+rest
+tempo
+difficulty
+instructions
+precautions
+commonMistakes
+substituteExercises
+tips
+
+Keep text short.
+
+instructions:
+2-3 short items
+
+precautions:
+0-2 short items
+
+commonMistakes:
+0-2 short items
+
+tips:
+0-2 short items
+
+DO NOT generate substituteExercises.
+
+Always return:
+
+"substituteExercises": []
+
+The application will automatically select exactly two substitute exercises from the Supabase catalog.
+
+Do NOT generate:
+- exercise IDs
+- GIF URLs
+- body parts
+- target muscles
+- secondary muscles
+- equipment
+- database instructions
+
+Supabase supplies those.
+
+Warm-up, stretching and cooldown should also be concise.
+
+Every day needs one short scientificEvidence statement based on accepted training principles.
+
+Do not invent:
+- studies
+- researchers
+- statistics
+- citations
+
+For upper split:
+give at least 2-3 exercises for each relevant upper body part:
+- chest
+- back
+- shoulder
+- bicep
+- tricep
+- arms
+
+For lower split:
+give at least 2-3 exercises for relevant lower body parts:
+- hamstrings
+- quads
+- glutes
+- calves
+
+For cardio split:
+include appropriate:
+- bodyweight cardio
+- machine cardio
+- treadmill
+- elliptical
+- cycling
+- cross-training/cardio
+
+Rest days:
+
+restDay=true
+workout=[]
+
+activity, recoveryTips, stretching and notes should be concise.
+
+====================================================
+JSON STRUCTURE
+====================================================
 
 Return ONLY valid JSON.
 
-Use this compact structure:
-
 {
   "note": "",
-  
   "days": {
     "Monday": {
       "dayName": "Monday",
@@ -750,78 +1564,39 @@ Use this compact structure:
       "restDay": false,
       "activity": "",
       "recoveryTips": [],
-      "warmUp": [
-    {
-      "bodyPart": "",
-      "exerciseId": "",
-      "exerciseName": "",
-      "duration": "",
-      "instructions": []
-    }
-  ],
-
-  "workout": [
-    {
-      "exerciseId": "",
-      "catalogName": "",
-      "exerciseName": "",
-      "exerciseType": "",
-      "exerciseOrder": "1",
-      "isCompound": true,
-      "muscleGroup": "",
-      "secondaryMuscles": [],
-      "sets": "",
-      "reps": "",
-      "duration": "",
-      "rest": "",
-      "tempo": "",
-      "difficulty": "",
-      "instructions": [],
-      "precautions": [],
-      "commonMistakes": [],
-
-      "substituteExercises": []
-
-      "tips": []
-    }
-  ],
-
-  "stretching": [
-    {
-      "bodyPart": "",
-      "exerciseId": "",
-      "exerciseName": "",
-      "duration": "",
-      "instructions": []
-    }
-  ],
-
-  "coolDown": [
-    {
-      "exerciseId": "",
-      "exerciseName": "",
-      "duration": "",
-      "instructions": []
-    }
-  ],
+      "warmUp": [],
+      "workout": [],
+      "stretching": [],
+      "coolDown": [],
       "motivation": "",
-    }
+      "scientificEvidence": ""
+    },
+    "Tuesday": {},
+    "Wednesday": {},
+    "Thursday": {},
+    "Friday": {},
+    "Saturday": {},
+    "Sunday": {}
   }
 }
 
-Use the same structure for all seven days.
+Use the same complete structure for all seven days.
 
 Before returning, verify:
+
 - all 7 days exist
+- days are Monday through Sunday
 - workout days match the user's selected days
 - rest days have workout=[]
-- every catalogName exists exactly in the catalog
-- substituteExercises must initially be an empty array
-- all catalogName values must exist exactly in the catalog
-- no database/GIF information is invented
-- JSON is complete and valid
+- every catalogName exists EXACTLY in the supplied catalog
+- substituteExercises=[]
+- no database information is invented
+- no GIF information is invented
+- JSON is complete
+- JSON is valid
 
-Return no markdown and no code fences.
+Return no markdown.
+Return no code fences.
 ''';
   }
 }

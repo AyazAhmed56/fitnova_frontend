@@ -16,6 +16,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
   @override
   void initState() {
     super.initState();
+
     generatePlan();
   }
 
@@ -30,6 +31,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
       }
 
       final uid = user.id;
+
       final profile = UserProfileModel(
         uid: uid,
 
@@ -44,56 +46,92 @@ class _PlanGeneratorState extends State<PlanGenerator> {
         goal: data.goal,
         targetWeight: data.targetWeight,
         durationMonths: data.durationMonths,
+
         muscleGainTarget: data.muscleGainTarget,
+
         strengthGoal: data.strengthGoal,
+
         primaryLift: data.primaryLift,
+
         repRange: data.repRange,
+
         enduranceGoal: data.enduranceGoal,
+
         cardioPreference: data.cardioPreference,
+
         sportName: data.sportName,
+
         fitnessGoals: data.fitnessGoals,
+
         workoutPlace: data.workoutPlace,
+
         performanceGoals: data.performanceGoals,
+
         competitionLevel: data.competitionLevel,
+
         workoutDays: data.workoutDays,
 
         activityLevel: data.activityLevel,
 
         dietaryPreferences: data.dietaryPreferences,
+
         allergies: data.allergies,
+
         comments: data.comments,
 
         mealsPerDay: data.mealsPerDay,
+
         sleepHours: data.sleepHours,
+
         waterIntake: data.waterIntake,
+
         job: data.job,
+
         workoutTime: data.workoutTime,
+
         officeTime: data.officeTime,
+
         breakTime: data.breakTime,
+
         exercise: data.exercise,
+
         wakeUp: data.wakeUp,
+
         budget: data.budget,
 
         workoutPrefer: data.workoutPrefer,
+
         equipmentPrefer: data.equipmentPrefer,
+
         split: data.split,
 
-        // NEW FIELDS
+        // Custom split is configured later
+        // from Workout Preferences.
+        customSplit: null,
+
         skinTone: data.skinTone,
+
         skinConcerns: data.skinConcerns,
 
         hairType: data.hairType,
+
         scalpType: data.scalpType,
+
         hairConcerns: data.hairConcerns,
 
         bodyType: data.bodyType,
+
         bodyGoal: data.bodyGoal,
+
         fitnessLevel: data.fitnessLevel,
       );
+
       final supabaseService = SupabaseService();
 
+      // Save user profile.
       await supabaseService.saveUserProfile(profile);
 
+      // Generate meal + workout plans.
       await supabaseService.generateAndSavePlans(uid);
 
       if (!mounted) return;
@@ -120,8 +158,9 @@ class _PlanGeneratorState extends State<PlanGenerator> {
 
       body: SafeArea(
         child: LayoutBuilder(
-          builder: (context, constraints) {
+          builder: (BuildContext context, BoxConstraints constraints) {
             final double sw = constraints.maxWidth;
+
             final double sh = constraints.maxHeight;
 
             return SizedBox(
@@ -133,6 +172,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
 
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+
                   children: [
                     Image.asset(
                       'assets/genplan.png',
@@ -144,6 +184,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
                     Text(
                       'Creating Your',
                       textAlign: TextAlign.center,
+
                       style: TextStyle(
                         fontSize: sw * 0.07,
                         fontWeight: FontWeight.bold,
@@ -155,6 +196,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
                     Text(
                       'Personalized fitness Plan',
                       textAlign: TextAlign.center,
+
                       style: TextStyle(
                         fontSize: sw * 0.07,
                         fontWeight: FontWeight.bold,
@@ -166,6 +208,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
                     Text(
                       'This may take sometime',
                       textAlign: TextAlign.center,
+
                       style: TextStyle(
                         fontSize: sw * 0.04,
                         fontWeight: FontWeight.w500,
@@ -178,6 +221,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
                     SizedBox(
                       width: sw * 0.08,
                       height: sw * 0.08,
+
                       child: const CircularProgressIndicator(strokeWidth: 3),
                     ),
                   ],

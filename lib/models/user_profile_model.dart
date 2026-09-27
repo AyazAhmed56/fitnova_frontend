@@ -11,17 +11,24 @@ class UserProfileModel {
   final String goal;
   final double targetWeight;
   final double durationMonths;
+
   final String muscleGainTarget;
   final String strengthGoal;
   final String primaryLift;
   final String repRange;
+
   final String enduranceGoal;
   final String cardioPreference;
+
   final List<String> fitnessGoals;
+
   final String workoutPlace;
   final String sportName;
+
   final List<String> performanceGoals;
+
   final String competitionLevel;
+
   final int workoutDays;
 
   final String activityLevel;
@@ -33,6 +40,7 @@ class UserProfileModel {
   final String mealsPerDay;
   final String sleepHours;
   final String waterIntake;
+
   final String job;
   final String workoutTime;
   final String breakTime;
@@ -40,70 +48,110 @@ class UserProfileModel {
   final String exercise;
   final String wakeUp;
   final String budget;
-  final String workoutPrefer;
 
+  final String workoutPrefer;
   final String equipmentPrefer;
+
   final String split;
+
+  // Custom weekly workout split.
+  //
+  // Example:
+  // {
+  //   "Monday": "Chest",
+  //   "Tuesday": "Back",
+  //   "Wednesday": "Legs",
+  //   "Thursday": "Shoulders",
+  //   "Friday": "Arms",
+  //   "Saturday": "Full Body",
+  //   "Sunday": "Rest"
+  // }
+  final Map<String, dynamic>? customSplit;
 
   final String skinTone;
   final List<String> skinConcerns;
 
   final String hairType;
   final List<String> hairConcerns;
+  final String scalpType;
 
   final String bodyType;
   final String bodyGoal;
+
   final String fitnessLevel;
-  final String scalpType;
 
   UserProfileModel({
     required this.uid,
+
     required this.fullName,
     required this.age,
     required this.gender,
+
     required this.height,
     required this.weight,
     required this.phone,
+
     required this.goal,
     required this.targetWeight,
     required this.durationMonths,
+
     required this.muscleGainTarget,
     required this.strengthGoal,
     required this.primaryLift,
     required this.repRange,
+
     required this.enduranceGoal,
     required this.cardioPreference,
+
     required this.fitnessGoals,
+
     required this.workoutPlace,
     required this.sportName,
+
     required this.performanceGoals,
+
     required this.competitionLevel,
+
     required this.workoutDays,
+
     required this.activityLevel,
+
     required this.dietaryPreferences,
     required this.allergies,
     required this.comments,
+
     required this.mealsPerDay,
     required this.sleepHours,
     required this.waterIntake,
+
     required this.job,
     required this.workoutTime,
-    required this.officeTime,
     required this.breakTime,
+    required this.officeTime,
     required this.exercise,
     required this.wakeUp,
     required this.budget,
+
     required this.workoutPrefer,
     required this.equipmentPrefer,
+
     required this.split,
+
+    // Optional so older code that creates
+    // UserProfileModel does not break.
+    this.customSplit,
+
     required this.skinTone,
     required this.skinConcerns,
-    required this.hairConcerns,
+
     required this.hairType,
-    required this.bodyGoal,
-    required this.bodyType,
-    required this.fitnessLevel,
+    required this.hairConcerns,
     required this.scalpType,
+
+    required this.bodyType,
+    required this.bodyGoal,
+
+    required this.fitnessLevel,
   });
 
   Map<String, dynamic> toJson() {
@@ -112,149 +160,250 @@ class UserProfileModel {
       'phone': phone,
       'age': age,
       'gender': gender,
+
       'height': height,
       'weight': weight,
 
       'goal': goal,
       'target_weight': targetWeight,
       'duration_months': durationMonths,
+
       'muscle_gain_target': muscleGainTarget,
+
       'strength_goal': strengthGoal,
+
       'primary_lift': primaryLift,
+
       'rep_range': repRange,
+
       'endurance_goal': enduranceGoal,
+
       'cardio_preference': cardioPreference,
+
       'fitness_goals': fitnessGoals,
+
       'workout_place': workoutPlace,
+
       'sport_name': sportName,
+
       'performance_goals': performanceGoals,
+
       'competition_level': competitionLevel,
+
       'workout_days': workoutDays,
 
       'activity_level': activityLevel,
 
       'dietary_preferences': dietaryPreferences,
+
       'allergies': allergies,
+
       'comments': comments,
+
       'meals_per_day': mealsPerDay,
+
       'sleep_hours': sleepHours,
+
       'water_intake': waterIntake,
 
       'job': job,
+
       'office_time': officeTime,
+
       'break_time': breakTime,
+
       'workout_time': workoutTime,
+
       'exercise': exercise,
+
       'wake_up': wakeUp,
+
       'budget': budget,
 
       'workout_prefer': workoutPrefer,
+
       'equipment_prefer': equipmentPrefer,
+
       'split': split,
 
+      // IMPORTANT:
+      // Supabase column is custom_split,
+      // not customSplit.
+      'custom_split': customSplit,
+
       'skin_tone': skinTone,
+
       'skin_concerns': skinConcerns,
 
       'hair_type': hairType,
+
       'hair_concerns': hairConcerns,
+
       'scalp_type': scalpType,
 
       'body_type': bodyType,
+
       'body_goal': bodyGoal,
+
       'fitness_level': fitnessLevel,
     };
   }
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) {
     return UserProfileModel(
-      uid: json['id'] ?? '',
-      fullName: json['full_name'] ?? '',
-      age: json['age'] ?? 0,
-      gender: json['gender'] ?? '',
+      uid: json['id']?.toString() ?? '',
 
-      height: (json['height'] ?? 0).toDouble(),
-      weight: (json['weight'] ?? 0).toDouble(),
-      phone: json['phone'] ?? 0,
+      fullName: json['full_name']?.toString() ?? '',
 
-      goal: json['goal'] ?? '',
+      age: _toInt(json['age']),
 
-      targetWeight: (json['target_weight'] ?? 0).toDouble(),
+      gender: json['gender']?.toString() ?? '',
 
-      durationMonths: (json['duration_months'] ?? 0).toDouble(),
+      height: _toDouble(json['height']),
 
-      muscleGainTarget: json['muscle_gain_target'] ?? '',
+      weight: _toDouble(json['weight']),
 
-      strengthGoal: json['strength_goal'] ?? '',
+      phone: _toInt(json['phone']),
 
-      primaryLift: json['primary_lift'] ?? '',
+      goal: json['goal']?.toString() ?? '',
 
-      repRange: json['rep_range'] ?? '',
+      targetWeight: _toDouble(json['target_weight']),
 
-      enduranceGoal: json['endurance_goal'] ?? '',
+      durationMonths: _toDouble(json['duration_months']),
 
-      cardioPreference: json['cardio_preference'] ?? '',
+      muscleGainTarget: json['muscle_gain_target']?.toString() ?? '',
 
-      sportName: json['sport_name'] ?? '',
+      strengthGoal: json['strength_goal']?.toString() ?? '',
 
-      fitnessGoals: List<String>.from(json['fitness_goals'] ?? []),
+      primaryLift: json['primary_lift']?.toString() ?? '',
 
-      performanceGoals: List<String>.from(json['performance_goals'] ?? []),
+      repRange: json['rep_range']?.toString() ?? '',
 
-      workoutPlace: json['workout_place'] ?? '',
+      enduranceGoal: json['endurance_goal']?.toString() ?? '',
 
-      competitionLevel: json['competition_level'] ?? '',
+      cardioPreference: json['cardio_preference']?.toString() ?? '',
 
-      workoutDays: json['workout_days'] ?? 0,
+      sportName: json['sport_name']?.toString() ?? '',
 
-      activityLevel: json['activity_level'] ?? '',
+      fitnessGoals: _toStringList(json['fitness_goals']),
 
-      dietaryPreferences: List<String>.from(json['dietary_preferences'] ?? []),
+      performanceGoals: _toStringList(json['performance_goals']),
 
-      allergies: json['allergies'] ?? '',
+      workoutPlace: json['workout_place']?.toString() ?? '',
 
-      comments: json['comments'] ?? '',
+      competitionLevel: json['competition_level']?.toString() ?? '',
 
-      mealsPerDay: json['meals_per_day'] ?? '',
+      workoutDays: _toInt(json['workout_days']),
 
-      sleepHours: json['sleep_hours'] ?? '',
+      activityLevel: json['activity_level']?.toString() ?? '',
 
-      waterIntake: json['water_intake'] ?? '',
+      dietaryPreferences: _toStringList(json['dietary_preferences']),
 
-      job: json['job'] ?? '',
+      allergies: json['allergies']?.toString() ?? '',
 
-      officeTime: json['office_time'] ?? '',
+      comments: json['comments']?.toString() ?? '',
 
-      workoutTime: json['workout_time'] ?? '',
+      mealsPerDay: json['meals_per_day']?.toString() ?? '',
 
-      breakTime: json['break_time'] ?? '',
+      sleepHours: json['sleep_hours']?.toString() ?? '',
 
-      exercise: json['exercise'] ?? '',
+      waterIntake: json['water_intake']?.toString() ?? '',
 
-      wakeUp: json['wake_up'] ?? '',
+      job: json['job']?.toString() ?? '',
 
-      budget: json['budget'] ?? '',
+      officeTime: json['office_time']?.toString() ?? '',
 
-      workoutPrefer: json['workout_prefer'] ?? '',
+      workoutTime: json['workout_time']?.toString() ?? '',
 
-      equipmentPrefer: json['equipment_prefer'] ?? '',
+      breakTime: json['break_time']?.toString() ?? '',
 
-      split: json['split'] ?? '',
+      exercise: json['exercise']?.toString() ?? '',
 
-      skinConcerns: List<String>.from(json['skin_concerns'] ?? []),
+      wakeUp: json['wake_up']?.toString() ?? '',
 
-      skinTone: json['skin_tone'] ?? '',
+      budget: json['budget']?.toString() ?? '',
 
-      hairConcerns: List<String>.from(json['hair_concerns'] ?? []),
+      workoutPrefer: json['workout_prefer']?.toString() ?? '',
 
-      hairType: json['hair_type'] ?? '',
+      equipmentPrefer: json['equipment_prefer']?.toString() ?? '',
 
-      bodyGoal: json['body_goal'] ?? '',
+      split: json['split']?.toString() ?? '',
 
-      bodyType: json['body_type'] ?? '',
+      // IMPORTANT:
+      // Read custom_split from Supabase.
+      customSplit: _toMap(json['custom_split']),
 
-      fitnessLevel: json['fitness_level'] ?? '',
+      skinTone: json['skin_tone']?.toString() ?? '',
 
-      scalpType: json['scalp_type'] ?? '',
+      skinConcerns: _toStringList(json['skin_concerns']),
+
+      hairType: json['hair_type']?.toString() ?? '',
+
+      hairConcerns: _toStringList(json['hair_concerns']),
+
+      scalpType: json['scalp_type']?.toString() ?? '',
+
+      bodyType: json['body_type']?.toString() ?? '',
+
+      bodyGoal: json['body_goal']?.toString() ?? '',
+
+      fitnessLevel: json['fitness_level']?.toString() ?? '',
     );
+  }
+
+  static int _toInt(dynamic value) {
+    if (value == null) {
+      return 0;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value.toString()) ?? 0;
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value == null) {
+      return 0.0;
+    }
+
+    if (value is double) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value.toString()) ?? 0.0;
+  }
+
+  static List<String> _toStringList(dynamic value) {
+    if (value == null) {
+      return [];
+    }
+
+    if (value is List) {
+      return value.map((item) => item.toString()).toList();
+    }
+
+    return [];
+  }
+
+  static Map<String, dynamic>? _toMap(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return null;
   }
 }
