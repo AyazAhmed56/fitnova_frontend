@@ -6,6 +6,7 @@ class UserProfileModel {
   final String gender;
   final double height;
   final double weight;
+  final String medical;
   final int phone;
 
   final String goal;
@@ -86,9 +87,9 @@ class UserProfileModel {
     required this.fullName,
     required this.age,
     required this.gender,
-
     required this.height,
     required this.weight,
+    required this.medical,
     required this.phone,
 
     required this.goal,
@@ -160,10 +161,9 @@ class UserProfileModel {
       'phone': phone,
       'age': age,
       'gender': gender,
-
       'height': height,
       'weight': weight,
-
+      'medical': medical,
       'goal': goal,
       'target_weight': targetWeight,
       'duration_months': durationMonths,
@@ -262,6 +262,8 @@ class UserProfileModel {
       height: _toDouble(json['height']),
 
       weight: _toDouble(json['weight']),
+
+      medical: json['medical']?.toString() ?? '',
 
       phone: _toInt(json['phone']),
 

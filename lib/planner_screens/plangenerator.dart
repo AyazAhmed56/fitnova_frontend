@@ -41,6 +41,7 @@ class _PlanGeneratorState extends State<PlanGenerator> {
 
         height: data.height,
         weight: data.weight,
+        medical: data.medical,
         phone: data.phone,
 
         goal: data.goal,

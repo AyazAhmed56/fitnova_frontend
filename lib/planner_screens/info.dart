@@ -17,6 +17,7 @@ class _InfoscreenState extends State<Infoscreen> {
   final TextEditingController heightController = TextEditingController();
   final TextEditingController weightController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
+  final TextEditingController medicalController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +246,7 @@ class _InfoscreenState extends State<Infoscreen> {
                         keyboardType: TextInputType.number,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return "Plese mention your weight";
+                            return "Please mention your weight";
                           }
                           final weight = double.tryParse(value);
                           if (weight == null || weight < 0 || weight > 300) {
@@ -256,6 +257,39 @@ class _InfoscreenState extends State<Infoscreen> {
                         decoration: InputDecoration(
                           hintText: 'Weight',
                           suffixText: 'kg',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(sw * 0.03),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: sh * 0.03),
+
+                      Text(
+                        'Any Medical Records/History',
+                        style: TextStyle(
+                          fontSize: sw * 0.04,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        'Type NA if no medical records',
+                        style: TextStyle(fontSize: sw * 0.02),
+                      ),
+
+                      SizedBox(height: sh * 0.01),
+
+                      TextFormField(
+                        controller: medicalController,
+                        keyboardType: TextInputType.text,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return "Please enter your medical history ";
+                          }
+                          return null;
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Blood pressure, diabetes, etc.',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(sw * 0.03),
                           ),
@@ -279,7 +313,7 @@ class _InfoscreenState extends State<Infoscreen> {
                         keyboardType: TextInputType.number,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return "Plese enter you phone no.";
+                            return "Please enter you phone no.";
                           }
                           if (!RegExp(r'^\d+$').hasMatch(value)) {
                             return "Phone no. should contin only digits";
@@ -323,7 +357,7 @@ class _InfoscreenState extends State<Infoscreen> {
                                 double.tryParse(weightController.text) ?? 0;
                             data.phone =
                                 int.tryParse(phoneController.text) ?? 0;
-
+                            data.medical = medicalController.text;
                             if (_formKey.currentState!.validate()) {
                               Navigator.push(
                                 context,

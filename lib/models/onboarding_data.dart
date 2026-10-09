@@ -8,6 +8,7 @@ class OnboardingData {
   String gender = '';
   double height = 0;
   double weight = 0;
+  String medical = '';
   int phone = 0;
 
   String goal = '';

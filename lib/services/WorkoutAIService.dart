@@ -1369,9 +1369,13 @@ location=${profile.workoutPrefer}
 workoutTime=${profile.workoutTime}
 equipment=${profile.equipmentPrefer}
 split=${profile.split}
+customsplit=${profile.customSplit} use this if the split is custom
 bodyType=${profile.bodyType}
 bodyGoal=${profile.bodyGoal}
 experience=${profile.fitnessLevel}
+
+Give special attention and more focus on the medical records and based on the medical records give the workout plan so that user should not get injured or their medical issues occur more.
+medicalRecords=${profile.medical}
 
 Use only fields relevant to the selected goal.
 
@@ -1515,6 +1519,21 @@ Do not invent:
 - statistics
 - citations
 
+For big muscles give 4 or more than 4 exercises and for small muscles give 2 or 3 exercises.
+
+Big muscles include: 
+- chest
+- back
+- shoulder 
+- leg
+Small muscles include:
+- biceps
+- triceps
+- forearms
+- abs
+
+Give the main workout exercise in the proper sequence on complete muscle not the mixture of all muscles (e.g. 1. chest 2. shoulder 3. triceps 4. shoulder 5. chest etc) 
+
 For upper split:
 give at least 2-3 exercises for each relevant upper body part:
 - chest
@@ -1522,7 +1541,6 @@ give at least 2-3 exercises for each relevant upper body part:
 - shoulder
 - bicep
 - tricep
-- arms
 
 For lower split:
 give at least 2-3 exercises for relevant lower body parts:
@@ -1530,6 +1548,8 @@ give at least 2-3 exercises for relevant lower body parts:
 - quads
 - glutes
 - calves
+- abs
+- forearms
 
 For cardio split:
 include appropriate:
