@@ -10,6 +10,8 @@ class OnboardingData {
   double weight = 0;
   String medical = '';
   int phone = 0;
+  String state = '';
+  String nativeState = '';
 
   String goal = '';
   // Lose Weight & Weight Gain

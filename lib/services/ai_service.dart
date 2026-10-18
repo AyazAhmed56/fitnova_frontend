@@ -22,6 +22,9 @@ Gender: ${profile.gender}
 Height: ${profile.height} cm
 Weight: ${profile.weight} kg
 Goal: ${profile.goal}
+Medical Records: ${profile.medical}
+Current living state: ${profile.state}
+Birth / Native state: ${profile.nativeState}
 Target Weight: ${profile.targetWeight}
 Duration: ${profile.durationMonths} months
 Muscle Gain Target:${profile.muscleGainTarget}
@@ -115,6 +118,9 @@ Strength Goal, Primary Lift, Rep Range for strength and power
 Endurance Goal, Cardio Preference for improve endurance
 Fitness Goals, Workout Place for generl fitness
 Sport Name, Performance Goal, Competition Level for Athletic Performance
+27. Add the green or black tea both the days if needed add in both morning and evening
+28. based on the age give the food related to them if either age is around adult, teeenage, young then give the items like chilli paneer, soya chicken, pizza, burger, fries, momos but everything should be healthy and easy to cook or prepare and if the age is elder, senior citizen, old then give items like dal, sabzi, roti, rice, etc. 
+29. Based on the state and native place give the mostly items that relate to that current state or native state. 
 
 you MUST provide:
 ingredients:

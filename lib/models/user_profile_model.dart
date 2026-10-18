@@ -8,6 +8,8 @@ class UserProfileModel {
   final double weight;
   final String medical;
   final int phone;
+  final String state;
+  final String nativeState;
 
   final String goal;
   final double targetWeight;
@@ -91,6 +93,8 @@ class UserProfileModel {
     required this.weight,
     required this.medical,
     required this.phone,
+    required this.state,
+    required this.nativeState,
 
     required this.goal,
     required this.targetWeight,
@@ -163,6 +167,8 @@ class UserProfileModel {
       'gender': gender,
       'height': height,
       'weight': weight,
+      'state': state,
+      'nativeState': nativeState,
       'medical': medical,
       'goal': goal,
       'target_weight': targetWeight,
@@ -262,6 +268,10 @@ class UserProfileModel {
       height: _toDouble(json['height']),
 
       weight: _toDouble(json['weight']),
+
+      state: json['state']?.toString() ?? '',
+
+      nativeState: json['nativeState']?.toString() ?? '',
 
       medical: json['medical']?.toString() ?? '',
 

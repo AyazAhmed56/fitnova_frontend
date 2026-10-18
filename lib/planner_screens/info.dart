@@ -11,6 +11,45 @@ class Infoscreen extends StatefulWidget {
 
 class _InfoscreenState extends State<Infoscreen> {
   String? selectedGender;
+  static const List<String> indianStatesAndUTs = [
+    'Andhra Pradesh',
+    'Arunachal Pradesh',
+    'Assam',
+    'Bihar',
+    'Chhattisgarh',
+    'Goa',
+    'Gujarat',
+    'Haryana',
+    'Himachal Pradesh',
+    'Jharkhand',
+    'Karnataka',
+    'Kerala',
+    'Madhya Pradesh',
+    'Maharashtra',
+    'Manipur',
+    'Meghalaya',
+    'Mizoram',
+    'Nagaland',
+    'Odisha',
+    'Punjab',
+    'Rajasthan',
+    'Sikkim',
+    'Tamil Nadu',
+    'Telangana',
+    'Tripura',
+    'Uttar Pradesh',
+    'Uttarakhand',
+    'West Bengal',
+    'Andaman and Nicobar Islands',
+    'Chandigarh',
+    'Dadra and Nagar Haveli and Daman and Diu',
+    'Delhi (National Capital Territory)',
+    'Jammu and Kashmir',
+    'Ladakh',
+    'Lakshadweep',
+    'Puducherry',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
@@ -18,6 +57,8 @@ class _InfoscreenState extends State<Infoscreen> {
   final TextEditingController weightController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController medicalController = TextEditingController();
+  final TextEditingController stateController = TextEditingController();
+  final TextEditingController nativeStateController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +302,94 @@ class _InfoscreenState extends State<Infoscreen> {
                             borderRadius: BorderRadius.circular(sw * 0.03),
                           ),
                         ),
+                      ),
+
+                      SizedBox(height: sh * 0.03),
+
+                      Text(
+                        'State',
+                        style: TextStyle(
+                          fontSize: sw * 0.04,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: sh * 0.01),
+                      DropdownButtonFormField<String>(
+                        value: stateController.text.isEmpty
+                            ? null
+                            : stateController.text,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          hintText: 'Select current state / UT',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(sw * 0.03),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: sw * 0.04,
+                            vertical: sh * 0.018,
+                          ),
+                        ),
+                        items: indianStatesAndUTs.map((state) {
+                          return DropdownMenuItem<String>(
+                            value: state,
+                            child: Text(state, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            stateController.text = value ?? '';
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select your current state';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      SizedBox(height: sh * 0.03),
+
+                      Text(
+                        'Native State',
+                        style: TextStyle(
+                          fontSize: sw * 0.04,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: sh * 0.01),
+                      DropdownButtonFormField<String>(
+                        value: nativeStateController.text.isEmpty
+                            ? null
+                            : nativeStateController.text,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          hintText: 'Select native state / UT',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(sw * 0.03),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: sw * 0.04,
+                            vertical: sh * 0.018,
+                          ),
+                        ),
+                        items: indianStatesAndUTs.map((state) {
+                          return DropdownMenuItem<String>(
+                            value: state,
+                            child: Text(state, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            nativeStateController.text = value ?? '';
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select your native state';
+                          }
+                          return null;
+                        },
                       ),
 
                       SizedBox(height: sh * 0.03),

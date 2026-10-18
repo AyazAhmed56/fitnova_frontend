@@ -43,7 +43,8 @@ class _PlanGeneratorState extends State<PlanGenerator> {
         weight: data.weight,
         medical: data.medical,
         phone: data.phone,
-
+        state: data.state,
+        nativeState: data.nativeState,
         goal: data.goal,
         targetWeight: data.targetWeight,
         durationMonths: data.durationMonths,
