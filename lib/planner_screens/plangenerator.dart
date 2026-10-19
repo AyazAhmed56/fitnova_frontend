@@ -1,12 +1,18 @@
 import 'package:fitnova/mainscreen.dart';
+import 'package:fitnova/diet_display/display_screen/skincare_screen.dart';
+import 'package:fitnova/diet_display/display_screen/haircare_screen.dart';
 import 'package:fitnova/models/onboarding_data.dart';
 import 'package:fitnova/models/user_profile_model.dart';
 import 'package:fitnova/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+enum PlanGenerationMode { profileOnly, diet, workout, skin, hair, both }
+
 class PlanGenerator extends StatefulWidget {
-  const PlanGenerator({super.key});
+  final PlanGenerationMode mode;
+
+  const PlanGenerator({super.key, this.mode = PlanGenerationMode.both});
 
   @override
   State<PlanGenerator> createState() => _PlanGeneratorState();
@@ -130,18 +136,76 @@ class _PlanGeneratorState extends State<PlanGenerator> {
 
       final supabaseService = SupabaseService();
 
-      // Save user profile.
-      await supabaseService.saveUserProfile(profile);
-
-      // Generate meal + workout plans.
-      await supabaseService.generateAndSavePlans(uid);
+      // Initial onboarding creates the profile and goal records, but must not
+      // generate a diet or workout plan yet.
+      if (widget.mode == PlanGenerationMode.profileOnly) {
+        await supabaseService.saveUserProfile(profile);
+      } else if (widget.mode == PlanGenerationMode.both) {
+        // Preserve the legacy Review -> PlanGenerator behavior for any older
+        // navigation still pointing here.
+        await supabaseService.saveUserProfile(profile);
+        await supabaseService.generateAndSavePlans(uid);
+      } else if (widget.mode == PlanGenerationMode.diet) {
+        // Update only diet/lifestyle fields. Do not overwrite workout, skin,
+        // hair, body, or goal answers already stored in Supabase.
+        await supabaseService.updateProfileFields(uid, {
+          'dietary_preferences': data.dietaryPreferences,
+          'allergies': data.allergies,
+          'comments': data.comments,
+          'meals_per_day': data.mealsPerDay,
+          'sleep_hours': data.sleepHours,
+          'water_intake': data.waterIntake,
+          'job': data.job,
+          'office_time': data.officeTime,
+          'break_time': data.breakTime,
+          'wake_up': data.wakeUp,
+          'budget': data.budget,
+        });
+        await supabaseService.generateAndSaveMealPlan(uid);
+      } else if (widget.mode == PlanGenerationMode.workout) {
+        await supabaseService.updateProfileFields(uid, {
+          'exercise': data.exercise,
+          'workout_prefer': data.workoutPrefer,
+          'equipment_prefer': data.equipmentPrefer,
+          'split': data.split,
+          'workout_time': data.workoutTime,
+          'job': data.job,
+          'office_time': data.officeTime,
+          'break_time': data.breakTime,
+          'wake_up': data.wakeUp,
+        });
+        await supabaseService.generateAndSaveWorkoutPlan(uid);
+      } else if (widget.mode == PlanGenerationMode.skin) {
+        await supabaseService.updateProfileFields(uid, {
+          'skin_tone': data.skinTone,
+          'skin_concerns': data.skinConcerns,
+        });
+      } else if (widget.mode == PlanGenerationMode.hair) {
+        await supabaseService.updateProfileFields(uid, {
+          'hair_type': data.hairType,
+          'scalp_type': data.scalpType,
+          'hair_concerns': data.hairConcerns,
+        });
+      }
 
       if (!mounted) return;
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
+      if (widget.mode == PlanGenerationMode.skin) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const SkinCareScreen()),
+          (route) => false,
+        );
+      } else if (widget.mode == PlanGenerationMode.hair) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HairCareScreen()),
+          (route) => false,
+        );
+      } else {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -196,7 +260,17 @@ class _PlanGeneratorState extends State<PlanGenerator> {
                     SizedBox(height: sh * 0.008),
 
                     Text(
-                      'Personalized fitness Plan',
+                      widget.mode == PlanGenerationMode.profileOnly
+                          ? 'Saving Your Profile'
+                          : widget.mode == PlanGenerationMode.diet
+                          ? 'Generating Your Diet Plan'
+                          : widget.mode == PlanGenerationMode.workout
+                          ? 'Generating Your Workout Plan'
+                          : widget.mode == PlanGenerationMode.skin
+                          ? 'Saving Your Skin Profile'
+                          : widget.mode == PlanGenerationMode.hair
+                          ? 'Saving Your Hair Profile'
+                          : 'Personalized Fitness Plan',
                       textAlign: TextAlign.center,
 
                       style: TextStyle(

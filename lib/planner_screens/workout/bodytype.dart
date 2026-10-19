@@ -1,5 +1,5 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/workout/equipment.dart';
+import 'package:fitnova/planner_screens/plangenerator.dart';
 import 'package:flutter/material.dart';
 import 'package:fitnova/models/selection_item.dart';
 import 'package:fitnova/diet_display/widgets/selection_card.dart';
@@ -174,7 +174,7 @@ class _BodyTypeScreenState extends State<BodyTypeScreen> {
                           //     Navigator.push(
                           //       context,
                           //       MaterialPageRoute(
-                          //         builder: (_) => const EquipmentPreferences(),
+                          //         builder: (_) => const PlanGenerator(mode: PlanGenerationMode.profileOnly),
                           //       ),
                           //     );
                           //   },
@@ -409,7 +409,7 @@ class _BodyTypeScreenState extends State<BodyTypeScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const EquipmentPreferences(),
+                                builder: (_) => const PlanGenerator(mode: PlanGenerationMode.profileOnly),
                               ),
                             );
                           },

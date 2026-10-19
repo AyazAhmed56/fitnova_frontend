@@ -1,5 +1,5 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/diet/hair.dart';
+import 'package:fitnova/planner_screens/plangenerator.dart';
 import 'package:fitnova/diet_display/widgets/selection_card.dart';
 import 'package:fitnova/diet_display/widgets/selection_chip.dart';
 import 'package:flutter/material.dart';
@@ -90,7 +90,7 @@ class _SkinScreenState extends State<SkinScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const HairScreen(),
+                                  builder: (_) => const PlanGenerator(mode: PlanGenerationMode.skin),
                                 ),
                               );
                             },
@@ -235,7 +235,7 @@ class _SkinScreenState extends State<SkinScreen> {
                               context,
 
                               MaterialPageRoute(
-                                builder: (_) => const HairScreen(),
+                                builder: (_) => const PlanGenerator(mode: PlanGenerationMode.skin),
                               ),
                             );
                           },

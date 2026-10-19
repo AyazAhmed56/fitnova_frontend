@@ -261,7 +261,7 @@ class _DietPreferenceState extends State<DietPreference> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const LifeStyleAndHabits(),
+                                  builder: (_) => const LifeStyleAndHabits(flow: 'diet'),
                                 ),
                               );
                             }

@@ -1,12 +1,14 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/workout/bodytype.dart';
+import 'package:fitnova/planner_screens/plangenerator.dart';
 // import 'package:dietplan/planner_screens/review.dart';
 // import 'package:dietplan/planner_screens/diet/skin.dart';
 // import 'package:dietplan/planner_screens/workout/workoutpreferences.dart';
 import 'package:flutter/material.dart';
 
 class LifeStyleAndHabits extends StatefulWidget {
-  const LifeStyleAndHabits({super.key});
+  final String flow; // 'diet' or 'workout'
+
+  const LifeStyleAndHabits({super.key, this.flow = 'diet'});
 
   @override
   State<LifeStyleAndHabits> createState() => _LifeStyleAndHabitsState();
@@ -70,6 +72,7 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.03),
 
+                    if (widget.flow == 'diet') ...[
                     _buildQuestion(
                       title: 'How many meals do you prefer?',
                       value: selectMeals,
@@ -85,6 +88,9 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    ],
+
+                    if (widget.flow == 'diet') ...[
                     _buildQuestion(
                       title: 'Sleep (hours per night)',
                       value: selectSleep,
@@ -107,6 +113,9 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    ],
+
+                    if (widget.flow == 'diet') ...[
                     _buildQuestion(
                       title: 'Water Intake (glasses per day)',
                       value: selectWater,
@@ -129,6 +138,9 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    ],
+
+                    if (widget.flow == 'workout') ...[
                     _buildQuestion(
                       title: 'Workout Type',
                       value: workoutType,
@@ -153,6 +165,9 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    ],
+
+                    if (widget.flow == 'workout') ...[
                     _buildQuestion(
                       title: 'Workout Location',
                       value: workoutPrefer,
@@ -168,6 +183,9 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    ],
+
+                    if (widget.flow == 'diet') ...[
                     _buildQuestion(
                       title: 'Budget Range (for 2 days)',
                       value: budgetRange,
@@ -189,6 +207,8 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
                     ),
 
                     SizedBox(height: sh * 0.025),
+
+                    ],
 
                     _buildQuestion(
                       title: 'Job Title',
@@ -256,6 +276,7 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
 
                     SizedBox(height: sh * 0.025),
 
+                    if (widget.flow == 'workout') ...[
                     Text(
                       'Gym / Workout Time',
                       style: TextStyle(
@@ -277,6 +298,8 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
                     ),
 
                     SizedBox(height: sh * 0.025),
+
+                    ],
 
                     Text(
                       'Wake Up Time',
@@ -328,7 +351,7 @@ class _LifeStyleAndHabitsState extends State<LifeStyleAndHabits> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const BodyTypeScreen(),
+                              builder: (_) => PlanGenerator(mode: widget.flow == 'workout' ? PlanGenerationMode.workout : PlanGenerationMode.diet),
                             ),
                           );
                         },

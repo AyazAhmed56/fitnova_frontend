@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/services/supabase_service.dart';
+import 'package:fitnova/planner_screens/workout/equipment.dart';
 import 'package:fitnova/settings/settings.dart';
 import 'package:fitnova/workout_display/display_screen/equipment_library.dart';
 import 'package:fitnova/workout_display/display_screen/exercise_library.dart';
@@ -65,48 +66,14 @@ class _WorkoutHomeState extends State<WorkoutHome> {
 
   Future<void> _generateWorkout() async {
     if (generating) return;
-
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) {
-      _showMessage("Please log in again.", Colors.red);
-      return;
-    }
-
-    setState(() {
-      generating = true;
-    });
-
-    try {
-      final profile = await SupabaseService().getUserProfile(user.id);
-
-      if (profile == null) {
-        throw Exception("User profile not found.");
-      }
-
-      await _repository.generateAndSaveWorkoutPlan(profile);
-
-      if (!mounted) return;
-
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const EquipmentPreferences()),
+    );
+    if (mounted) {
       setState(() {
         _loadPlan();
       });
-
-      await _planFuture;
-
-      if (!mounted) return;
-
-      _showMessage("Workout plan generated successfully.", Colors.green);
-    } catch (e) {
-      if (!mounted) return;
-
-      _showMessage(e.toString(), Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() {
-          generating = false;
-        });
-      }
     }
   }
 

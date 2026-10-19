@@ -57,6 +57,9 @@ class OnboardingData {
   String equipmentPrefer = '';
   String split = '';
 
+  // Custom workout split for each day of the week.
+  Map<String, dynamic> customSplit = {};
+
   String skinTone = "";
   List<String> skinConcerns = [];
 

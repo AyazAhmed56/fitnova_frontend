@@ -167,8 +167,8 @@ class UserProfileModel {
       'gender': gender,
       'height': height,
       'weight': weight,
-      'state': state,
-      'nativeState': nativeState,
+      'current_state': state,
+      'native_state': nativeState,
       'medical': medical,
       'goal': goal,
       'target_weight': targetWeight,
@@ -269,9 +269,9 @@ class UserProfileModel {
 
       weight: _toDouble(json['weight']),
 
-      state: json['state']?.toString() ?? '',
+      state: json['current_state']?.toString() ?? '',
 
-      nativeState: json['nativeState']?.toString() ?? '',
+      nativeState: json['native_state']?.toString() ?? '',
 
       medical: json['medical']?.toString() ?? '',
 

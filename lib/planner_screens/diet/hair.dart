@@ -2,7 +2,7 @@ import 'package:fitnova/models/onboarding_data.dart';
 import 'package:fitnova/models/selection_item.dart';
 import 'package:fitnova/diet_display/widgets/selection_card.dart';
 import 'package:fitnova/diet_display/widgets/selection_chip.dart';
-import 'package:fitnova/planner_screens/review.dart';
+import 'package:fitnova/planner_screens/plangenerator.dart';
 import 'package:flutter/material.dart';
 
 class HairScreen extends StatefulWidget {
@@ -105,7 +105,7 @@ class _HairScreenState extends State<HairScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const ReviewInfo(),
+                                  builder: (_) => const PlanGenerator(mode: PlanGenerationMode.hair),
                                 ),
                               );
                             },
@@ -310,7 +310,7 @@ class _HairScreenState extends State<HairScreen> {
                               context,
 
                               MaterialPageRoute(
-                                builder: (_) => const ReviewInfo(),
+                                builder: (_) => const PlanGenerator(mode: PlanGenerationMode.hair),
                               ),
                             );
                           },

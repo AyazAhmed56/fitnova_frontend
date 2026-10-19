@@ -2,10 +2,11 @@ import 'dart:ui';
 
 import 'package:fitnova/ai_coach/ai_coach_screen.dart';
 import 'package:fitnova/diet_display/display_screen/dailymeal.dart';
-import 'package:fitnova/diet_display/display_screen/haircare_screen.dart';
 import 'package:fitnova/diet_display/display_screen/macro_nutrition_page.dart';
 import 'package:fitnova/diet_display/display_screen/shoppinglist.dart';
-import 'package:fitnova/diet_display/display_screen/skincare_screen.dart';
+import 'package:fitnova/planner_screens/diet/dietprefer.dart';
+import 'package:fitnova/planner_screens/diet/skin.dart';
+import 'package:fitnova/planner_screens/diet/hair.dart';
 import 'package:fitnova/diet_display/widgets/nutrition_search_bar.dart';
 import 'package:fitnova/models/user_profile_model.dart';
 import 'package:fitnova/services/supabase_service.dart';
@@ -76,45 +77,12 @@ class _DietHomeState extends State<DietHome> {
   }
 
   Future<void> _generateNewMealPlan() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-
-    setState(() {
-      generateMealPlan = true;
-    });
-
-    try {
-      await _supabase.generateAndSaveMealPlan(user.id);
-
-      final newMealPlan = await _supabase.getMealPlan(user.id);
-
-      if (!mounted) return;
-
-      setState(() {
-        _mealPlan = newMealPlan;
-      });
-
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('New meal plan generated successfully'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      messenger.showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    } finally {
-      if (!mounted) return;
-
-      setState(() {
-        generateMealPlan = false;
-      });
-    }
+    // Ask diet-specific questions every time the user starts/restarts a plan.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DietPreference()),
+    );
+    if (mounted) await _loadPageData();
   }
 
   @override
@@ -213,8 +181,41 @@ class _DietHomeState extends State<DietHome> {
     }
 
     if (_mealPlan == null) {
-      return const Center(
-        child: Text("No Meal Plan Generated Yet"),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.restaurant_menu, size: 54, color: primaryGreen),
+              const SizedBox(height: 14),
+              const Text("No Meal Plan Generated Yet", textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _generateNewMealPlan,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text("Answer Diet Questions"),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SkinScreen()),
+                ),
+                icon: const Icon(Icons.face_retouching_natural),
+                label: const Text("Skin Questions"),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HairScreen()),
+                ),
+                icon: const Icon(Icons.content_cut),
+                label: const Text("Hair Questions"),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -373,7 +374,7 @@ class _DietHomeState extends State<DietHome> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const SkinCareScreen(),
+                    builder: (_) => const SkinScreen(),
                   ),
                 );
               },
@@ -388,7 +389,7 @@ class _DietHomeState extends State<DietHome> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const HairCareScreen(),
+                    builder: (_) => const HairScreen(),
                   ),
                 );
               },

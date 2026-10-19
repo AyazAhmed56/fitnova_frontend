@@ -1,5 +1,5 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/diet/skin.dart';
+import 'package:fitnova/planner_screens/diet/lifestyle.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
@@ -209,7 +209,7 @@ class _SplitPreferenceState extends State<SplitPreference> {
                         data.split = selectedSplit.trim();
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const SkinScreen()),
+                          MaterialPageRoute(builder: (_) => const LifeStyleAndHabits(flow: 'workout')),
                         );
                       },
 

@@ -1,5 +1,5 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/diet/dietprefer.dart';
+import 'package:fitnova/planner_screens/workout/bodytype.dart';
 import 'package:flutter/material.dart';
 
 class ActivityLevel extends StatefulWidget {
@@ -200,7 +200,7 @@ class _ActivityLevelState extends State<ActivityLevel> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const DietPreference(),
+                            builder: (_) => const BodyTypeScreen(),
                           ),
                         );
                       },

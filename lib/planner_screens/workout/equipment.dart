@@ -1,8 +1,6 @@
 import 'package:fitnova/models/onboarding_data.dart';
-import 'package:fitnova/planner_screens/diet/skin.dart';
 import 'package:fitnova/planner_screens/workout/splitprefer.dart';
 import 'package:flutter/material.dart';
-// import 'package:hugeicons/hugeicons.dart';
 
 class EquipmentPreferences extends StatefulWidget {
   const EquipmentPreferences({super.key});
@@ -12,200 +10,227 @@ class EquipmentPreferences extends StatefulWidget {
 }
 
 class _EquipmentPreferencesState extends State<EquipmentPreferences> {
-  Set<String> selectedPreferences = {};
+  static const Color primaryColor = Color(0xFF3A6F4B);
+
+  final Set<String> selectedPreferences = {};
 
   final List<Map<String, dynamic>> preferences = [
-    {'title': 'Dumbbells', 'icon': Icons.fitness_center},
-    {'title': 'Barbell', 'icon': Icons.sports_gymnastics},
-    {'title': 'Resistance band', 'icon': Icons.sports},
-    {'title': 'Kettlebell', 'icon': Icons.fitness_center},
-    {'title': 'Pull-up bar', 'icon': Icons.horizontal_rule},
-    {'title': 'Bench', 'icon': Icons.event_seat},
-    {'title': 'Yoga Mat', 'icon': Icons.self_improvement},
-    {'title': 'None', 'icon': Icons.block},
+    {
+      'title': 'Gym Equipment',
+      'description': 'Full gym with machines and weights',
+      'icon': Icons.fitness_center,
+    },
+    {
+      'title': 'Basic Equipment',
+      'description': 'Dumbbells, bands, or a bench',
+      'icon': Icons.sports_gymnastics,
+    },
+    {
+      'title': 'Home Workout',
+      'description': 'Exercise at home with available space',
+      'icon': Icons.home_outlined,
+    },
+    {
+      'title': 'Bodyweight Only',
+      'description': 'Use your body weight for resistance',
+      'icon': Icons.accessibility_new,
+    },
+    {
+      'title': 'No Equipment',
+      'description': 'No equipment available',
+      'icon': Icons.block,
+    },
   ];
+
+  void togglePreference(String title) {
+    setState(() {
+      if (title == 'No Equipment') {
+        if (selectedPreferences.contains(title)) {
+          selectedPreferences.remove(title);
+        } else {
+          selectedPreferences
+            ..clear()
+            ..add(title);
+        }
+        return;
+      }
+
+      selectedPreferences.remove('No Equipment');
+
+      if (selectedPreferences.contains(title)) {
+        selectedPreferences.remove(title);
+      } else {
+        selectedPreferences.add(title);
+      }
+    });
+  }
+
+  void continueToNext() {
+    if (selectedPreferences.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select your workout setup.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // The existing Supabase field is text, so store
+    // the selected categories as a comma-separated string.
+    OnboardingData.instance.equipmentPrefer = selectedPreferences.join(', ');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SplitPreference()),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    final saved = OnboardingData.instance.equipmentPrefer;
+    if (saved.isNotEmpty) {
+      selectedPreferences.addAll(
+        saved
+            .split(', ')
+            .where(
+              (value) => preferences.any((item) => item['title'] == value),
+            ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Information Details'),
+        title: const Text('Workout Preferences'),
         centerTitle: true,
       ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final screenW = constraints.maxWidth;
-            final sh = constraints.maxHeight;
-            // Cap content width on tablet/web so it doesn't stretch full width,
-            // and use that capped width as the basis for proportional sizing.
-            final sw = screenW > 600 ? 600.0 : screenW;
+            final sw = constraints.maxWidth > 600
+                ? 600.0
+                : constraints.maxWidth;
 
-            return ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: sw),
-              child: SingleChildScrollView(
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: sw),
                 child: Padding(
-                  padding: EdgeInsets.all(sw * 0.0533),
+                  padding: EdgeInsets.all(sw * 0.05),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Center(
-                        child: Text(
-                          'Equipment Used',
-                          style: TextStyle(
-                            fontSize: sw * 0.06,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: sh * 0.0123),
-                      Text(
-                        'Where do you prefer to workout?',
+                      const Text(
+                        'What equipment can you use?',
                         style: TextStyle(
-                          fontSize: sw * 0.053,
+                          fontSize: 23,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: sh * 0.0123),
+                      const SizedBox(height: 8),
                       Text(
-                        'You can select more than one',
+                        'Select one or more options. Choose '
+                        'No Equipment if you have none available.',
                         style: TextStyle(
-                          fontSize: sw * 0.037,
-                          fontWeight: FontWeight.normal,
-                          color: Colors.grey,
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                      SizedBox(height: sh * 0.0123),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: preferences.length,
+                          itemBuilder: (context, index) {
+                            final item = preferences[index];
+                            final title = item['title'] as String;
+                            final isSelected = selectedPreferences.contains(
+                              title,
+                            );
 
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: sw * 0.0267,
-                          mainAxisSpacing: sh * 0.0123,
-                          childAspectRatio: 2.3,
-                        ),
-
-                        itemCount: preferences.length,
-
-                        itemBuilder: (context, index) {
-                          final item = preferences[index];
-                          final isSelected = selectedPreferences.contains(
-                            item['title'],
-                          );
-
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(sw * 0.0347),
-                            onTap: () {
-                              setState(() {
-                                if (isSelected) {
-                                  selectedPreferences.remove(item['title']);
-                                } else {
-                                  selectedPreferences.add(item['title']);
-                                }
-                              });
-                            },
-
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: sw * 0.032,
-                              ),
-
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-
-                                borderRadius: BorderRadius.circular(
-                                  sw * 0.0347,
-                                ),
-
-                                border: Border.all(
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => togglePreference(title),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
                                   color: isSelected
-                                      ? const Color(0xFF3A6F4B)
-                                      : Colors.grey.shade300,
-                                  width: 1.5,
-                                ),
-                              ),
-
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    item['icon'],
-                                    size: sw * 0.1067,
-                                    color: Colors.green,
+                                      ? const Color(0xFFE8F3E9)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? primaryColor
+                                        : Colors.grey.shade300,
+                                    width: 1.4,
                                   ),
-
-                                  SizedBox(width: sw * 0.0267),
-
-                                  Expanded(
-                                    child: Text(
-                                      item['title'],
-                                      style: TextStyle(
-                                        fontSize: sw * 0.0427,
-                                        fontWeight: FontWeight.w600,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      item['icon'] as IconData,
+                                      size: 32,
+                                      color: primaryColor,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            item['description'] as String,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-
-                                  if (isSelected)
                                     Icon(
-                                      Icons.check_circle,
-                                      size: sw * 0.1067,
-                                      color: const Color(0xFF3A6F4B),
+                                      isSelected
+                                          ? Icons.check_circle
+                                          : Icons.circle_outlined,
+                                      color: isSelected
+                                          ? primaryColor
+                                          : Colors.grey,
                                     ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                      SizedBox(height: sh * 0.0369),
                       SizedBox(
                         width: double.infinity,
-                        height: sh * 0.0493,
-
+                        height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3A6F4B),
-
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(sw * 0.0347),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-
-                          onPressed: () {
-                            if (selectedPreferences.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Pleae select your preference'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
-                            final data = OnboardingData.instance;
-                            data.equipmentPrefer = selectedPreferences
-                                .toString();
-                            if (data.fitnessLevel == 'Beginner') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SkinScreen(),
-                                ),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SplitPreference(),
-                                ),
-                              );
-                            }
-                          },
-
-                          child: Text(
+                          onPressed: continueToNext,
+                          child: const Text(
                             'Next',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: sw * 0.0533,
+                              fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
