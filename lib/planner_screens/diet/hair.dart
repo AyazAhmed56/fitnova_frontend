@@ -55,12 +55,14 @@ class _HairScreenState extends State<HairScreen> {
 
   final List<String> concerns = [
     "Hair Fall",
-    "Slow Growth",
     "Dandruff",
+    "Dry Hair",
+    "Oily Hair",
+    "Frizzy Hair",
     "Split Ends",
-    "Breakage",
-    "Itchy Scalp",
     "Thin Hair",
+    "Slow Growth",
+    "Damaged Hair",
   ];
 
   @override
@@ -105,7 +107,9 @@ class _HairScreenState extends State<HairScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const PlanGenerator(mode: PlanGenerationMode.hair),
+                                  builder: (_) => const PlanGenerator(
+                                    mode: PlanGenerationMode.hair,
+                                  ),
                                 ),
                               );
                             },
@@ -310,7 +314,9 @@ class _HairScreenState extends State<HairScreen> {
                               context,
 
                               MaterialPageRoute(
-                                builder: (_) => const PlanGenerator(mode: PlanGenerationMode.hair),
+                                builder: (_) => const PlanGenerator(
+                                  mode: PlanGenerationMode.hair,
+                                ),
                               ),
                             );
                           },

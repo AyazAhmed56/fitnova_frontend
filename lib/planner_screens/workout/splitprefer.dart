@@ -1,5 +1,7 @@
+
 import 'package:fitnova/models/onboarding_data.dart';
 import 'package:fitnova/planner_screens/diet/lifestyle.dart';
+import 'package:fitnova/planner_screens/workout/custom_split.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
@@ -11,55 +13,86 @@ class SplitPreference extends StatefulWidget {
 }
 
 class _SplitPreferenceState extends State<SplitPreference> {
+  static const Color primaryColor = Color(0xFF3A6F4B);
+
   String selectedSplit = '';
 
   final List<Map<String, dynamic>> splits = [
     {
       'title': 'Full Body',
-      'text': 'Train all muscle groups',
+      'text': 'Train all major muscle groups',
       'icon': HugeIcons.strokeRoundedDumbbell01,
     },
     {
-      'title': 'Upper / Lower / Rest',
-      'text': 'Split upper & lower body',
-      'icon': HugeIcons.strokeRoundedBodyArmor,
-    },
-    {
-      'title': 'Upper / Lower / Cardio',
-      'text': 'Split upper & lower body',
-      'icon': HugeIcons.strokeRoundedBodyArmor,
-    },
-    {
-      'title': 'Upper / Cardio / Lower',
-      'text': 'Split upper & lower body',
+      'title': 'Upper / Lower / Rest(or Cardio)',
+      'text': 'Alternate upper and lower body',
       'icon': HugeIcons.strokeRoundedBodyArmor,
     },
     {
       'title': 'Push / Pull / Legs',
-      'text': 'Advanced split',
-      'icon': HugeIcons.strokeRoundedGymnasticRings,
-    },
-    {
-      'title': 'Legs / Push / Pull',
-      'text': 'Advanced split',
+      'text': 'A structured three-part split',
       'icon': HugeIcons.strokeRoundedGymnasticRings,
     },
     {
       'title': 'Single Muscle Split',
-      'text': 'Focus on one body part',
+      'text': 'Focus on one muscle group',
       'icon': HugeIcons.strokeRoundedBodyPartMuscle,
     },
     {
       'title': 'Double Muscle Split',
-      'text': 'Focus on two body part',
+      'text': 'Train two muscle groups together',
       'icon': HugeIcons.strokeRoundedWorkoutRun,
     },
     {
       'title': 'Custom Split',
-      'text': 'I want a custom plans',
+      'text': 'Choose a workout for each day',
       'icon': HugeIcons.strokeRoundedSettings02,
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    selectedSplit = OnboardingData.instance.split;
+  }
+
+  void continueToNext() {
+    if (selectedSplit.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a workout split.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final data = OnboardingData.instance;
+    data.split = selectedSplit;
+
+    if (selectedSplit != 'Custom Split') {
+      data.customSplit = {};
+    }
+
+    if (selectedSplit == 'Custom Split') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const CustomSplitScreen(),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LifeStyleAndHabits(
+          flow: 'workout',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +101,6 @@ class _SplitPreferenceState extends State<SplitPreference> {
         title: const Text('Information Details'),
         centerTitle: true,
       ),
-
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -77,19 +109,17 @@ class _SplitPreferenceState extends State<SplitPreference> {
 
             return Padding(
               padding: EdgeInsets.all(sw * 0.05),
-
               child: Column(
                 children: [
                   Text(
                     'How do you prefer to train?',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: sw * 0.06,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-
                   SizedBox(height: sh * 0.01),
-
                   Text(
                     'Choose your workout split',
                     style: TextStyle(
@@ -97,34 +127,38 @@ class _SplitPreferenceState extends State<SplitPreference> {
                       color: Colors.grey.shade600,
                     ),
                   ),
-
                   SizedBox(height: sh * 0.03),
-
                   Expanded(
                     child: ListView.builder(
                       itemCount: splits.length,
                       itemBuilder: (context, index) {
                         final split = splits[index];
+                        final title = split['title'] as String;
+                        final isSelected = selectedSplit == title;
 
                         return InkWell(
-                          borderRadius: BorderRadius.circular(sw * 0.035),
+                          borderRadius: BorderRadius.circular(14),
                           onTap: () {
                             setState(() {
-                              selectedSplit = split['title'];
+                              selectedSplit = title;
                             });
                           },
                           child: Container(
-                            margin: EdgeInsets.only(bottom: sh * 0.015),
+                            margin: EdgeInsets.only(
+                              bottom: sh * 0.015,
+                            ),
                             padding: EdgeInsets.symmetric(
                               horizontal: sw * 0.04,
                               vertical: sh * 0.018,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(sw * 0.035),
+                              color: isSelected
+                                  ? const Color(0xFFE8F3E9)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: selectedSplit == split['title']
-                                    ? const Color(0xFF3A6F4B)
+                                color: isSelected
+                                    ? primaryColor
                                     : Colors.grey.shade300,
                                 width: 1.4,
                               ),
@@ -134,41 +168,40 @@ class _SplitPreferenceState extends State<SplitPreference> {
                                 HugeIcon(
                                   icon: split['icon'],
                                   size: sw * 0.07,
-                                  color: Colors.green.shade600,
+                                  color: primaryColor,
                                 ),
-
                                 SizedBox(width: sw * 0.04),
-
                                 Expanded(
                                   child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        split['title'],
+                                        title,
                                         style: TextStyle(
                                           fontSize: sw * 0.04,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      SizedBox(height: 5),
+                                      const SizedBox(height: 5),
                                       Text(
-                                        split['text'],
+                                        split['text'] as String,
                                         style: TextStyle(
                                           fontSize: sw * 0.03,
-                                          fontWeight: FontWeight.w400,
-                                          color: Colors.grey,
+                                          color: Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-
                                 Radio<String>(
-                                  value: split['title'],
+                                  value: title,
                                   groupValue: selectedSplit,
-                                  activeColor: const Color(0xFF3A6F4B),
+                                  activeColor: primaryColor,
                                   onChanged: (value) {
+                                    if (value == null) return;
                                     setState(() {
-                                      selectedSplit = value!;
+                                      selectedSplit = value;
                                     });
                                   },
                                 ),
@@ -179,44 +212,22 @@ class _SplitPreferenceState extends State<SplitPreference> {
                       },
                     ),
                   ),
-
                   SizedBox(height: sh * 0.02),
-
                   SizedBox(
                     width: double.infinity,
                     height: sh * 0.06,
-
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3A6F4B),
-
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(sw * 0.03),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-
-                      onPressed: () {
-                        if (selectedSplit.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Pleae select your goal'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-                        final data = OnboardingData.instance;
-                        data.split = selectedSplit.trim();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LifeStyleAndHabits(flow: 'workout')),
-                        );
-                      },
-
+                      onPressed: continueToNext,
                       child: Text(
                         'Next',
                         style: TextStyle(
-                          color: Colors.white,
                           fontSize: sw * 0.04,
                           fontWeight: FontWeight.w600,
                         ),

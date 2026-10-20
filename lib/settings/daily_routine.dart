@@ -22,7 +22,8 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
   late TextEditingController wakeUpController;
   late TextEditingController officeController;
   late TextEditingController breakController;
-  late TextEditingController workoutTimeController;
+  late TextEditingController workoutStartController;
+  late TextEditingController workoutEndController;
   late TextEditingController exerciseController;
   late TextEditingController sleepController;
   late TextEditingController waterController;
@@ -37,7 +38,8 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
     wakeUpController = TextEditingController();
     officeController = TextEditingController();
     breakController = TextEditingController();
-    workoutTimeController = TextEditingController();
+    workoutStartController = TextEditingController();
+    workoutEndController = TextEditingController();
     exerciseController = TextEditingController();
     sleepController = TextEditingController();
     waterController = TextEditingController();
@@ -64,7 +66,7 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
         wakeUpController.text = result.wakeUp;
         officeController.text = result.officeTime;
         breakController.text = result.breakTime;
-        workoutTimeController.text = result.workoutTime;
+        _loadWorkoutTimeRange(result.workoutTime);
         exerciseController.text = result.exercise;
         sleepController.text = result.sleepHours;
         waterController.text = result.waterIntake;
@@ -80,17 +82,71 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
     }
   }
 
-  Future<void> _selectTime(TextEditingController controller) async {
-    TimeOfDay initialTime = TimeOfDay.now();
+  void _loadWorkoutTimeRange(String value) {
+    // Existing records may contain a single time. Keep it as the start time
+    // and leave the end time empty until the user selects one.
+    final parts = value.split(RegExp(r'\s*(?:–|—| to | - )\s*'));
+    if (parts.isNotEmpty) workoutStartController.text = parts.first.trim();
+    if (parts.length > 1) workoutEndController.text = parts[1].trim();
+  }
 
+  Future<void> _selectTime(TextEditingController controller) async {
     final result = await showTimePicker(
       context: context,
-      initialTime: initialTime,
+      initialTime: TimeOfDay.now(),
     );
 
-    if (result != null) {
-      controller.text = result.format(context);
+    if (result != null && mounted) {
+      setState(() => controller.text = result.format(context));
     }
+  }
+
+  Widget _workoutTimeRangeField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _timePickerField(
+              label: 'Workout From',
+              controller: workoutStartController,
+              icon: Icons.play_arrow_rounded,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _timePickerField(
+              label: 'Workout To',
+              controller: workoutEndController,
+              icon: Icons.stop_rounded,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timePickerField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      onTap: () => _selectTime(controller),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: primary),
+        suffixIcon: const Icon(Icons.access_time),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
   }
 
   Future<void> _saveRoutine() async {
@@ -103,7 +159,10 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
       await _service.updateProfileFields(user.id, {
         'sleep_hours': sleepController.text.trim(),
         'water_intake': waterController.text.trim(),
-        'workout_time': workoutTimeController.text.trim(),
+        'workout_time': [
+          workoutStartController.text.trim(),
+          workoutEndController.text.trim(),
+        ].where((time) => time.isNotEmpty).join(' - '),
         'break_time': breakController.text.trim(),
         'office_time': officeController.text.trim(),
         'exercise': exerciseController.text.trim(),
@@ -286,11 +345,7 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
                 Icons.free_breakfast_outlined,
               ),
 
-              _timeField(
-                "Workout Time",
-                workoutTimeController,
-                Icons.fitness_center_outlined,
-              ),
+              _workoutTimeRangeField(),
 
               _textField(
                 "Exercise Duration",
@@ -360,7 +415,8 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> {
     wakeUpController.dispose();
     officeController.dispose();
     breakController.dispose();
-    workoutTimeController.dispose();
+    workoutStartController.dispose();
+    workoutEndController.dispose();
     exerciseController.dispose();
     sleepController.dispose();
     waterController.dispose();

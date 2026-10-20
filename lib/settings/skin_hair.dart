@@ -30,12 +30,10 @@ class _SkinHairScreenState extends State<SkinHairScreen> {
   final Color lightGreen = const Color(0xFFEAF4ED);
 
   final List<String> skinTones = [
-    "Very Fair",
     "Fair",
-    "Light",
+    "Wheatish",
     "Medium",
-    "Tan",
-    "Deep",
+    "Dusky",
     "Dark",
   ];
 
@@ -71,7 +69,6 @@ class _SkinHairScreenState extends State<SkinHairScreen> {
     "Dry",
     "Oily",
     "Sensitive",
-    "Dandruff Prone",
   ];
 
   @override

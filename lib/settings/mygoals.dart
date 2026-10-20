@@ -57,6 +57,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   final List<String> goals = [
     "Build Muscle",
     "Lose Weight",
+    "Weight Gain",
     "Strength & Power",
     "Improve Endurance",
     "General Fitness",
@@ -104,15 +105,18 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
     "Body Recomposition",
     "Cutting",
     "Maintain",
+    "Aesthetic Physique",
   ];
 
   final List<String> bodyGoalsFemale = [
-    "Weight Loss",
-    "Fat Loss",
+    "Hour Glass",
+    "Muscle Tone",
     "Lean & Toned",
-    "Overall Wellness",
+    "Weight Loss",
     "Maintain",
     "Slim Fit",
+    "Toned curves",
+    "Overall Wellness",
   ];
 
   final List<String> liftOptions = [

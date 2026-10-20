@@ -21,13 +21,16 @@ class _SkinScreenState extends State<SkinScreen> {
   late final String genderFolder;
 
   final List<String> concerns = [
-    "Tanning",
-    "Acne",
+     "Acne",
+    "Pimples",
+    "Dark Spots",
     "Pigmentation",
     "Dry Skin",
     "Oily Skin",
-    "Dark Circles",
+    "Sensitive Skin",
+    "Uneven Skin Tone",
     "Dull Skin",
+    "Fine Lines",
   ];
 
   @override

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -53,20 +51,16 @@ class _WorkoutPreferencesScreenState extends State<WorkoutPreferencesScreen> {
     "No Equipment",
     "Basic Equipment",
     "Full Gym Equipment",
-    "Dumbbells",
-    "Resistance Bands",
+    "Home Workout",
+    "Bodyweight Only",
   ];
 
   final List<String> splitOptions = [
     "Full Body",
-    "Upper / Lower / Rest",
-    "Upper / Cardio / Lower",
-    "Upper / Lower / Cardio",
+    "Upper / Lower / Rest(or Cardio)",
     "Push / Pull / Legs",
-    "Legs / Push / Pull",
     "Single Muscle",
     "Double Muscle",
-    "Bro Split",
     "Custom",
   ];
 
