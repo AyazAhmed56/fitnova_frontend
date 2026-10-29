@@ -12,7 +12,7 @@ class WorkoutAIService {
 
   static const String _model = 'gemini-2.5-flash';
 
-  static const int _maxOutputTokens = 50000;
+  static const int _maxOutputTokens = 100000;
 
   static const Duration _requestTimeout = Duration(minutes: 3);
 

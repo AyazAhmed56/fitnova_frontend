@@ -34,7 +34,7 @@ class AIService {
             'generationConfig': {
               'temperature': 0.3,
               'responseMimeType': 'application/json',
-              'maxOutputTokens': 16000,
+              'maxOutputTokens': 100000,
             },
           }),
         )
